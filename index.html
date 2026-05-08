@@ -104,6 +104,10 @@
         .btn-success:hover { background: #2e7d32; }
         .btn-danger { background: #d32f2f; color: white; padding: 8px 12px; font-size: 12px; }
         .btn-danger:hover { background: #c62828; }
+        .btn-secundario { background: #1976d2; color: white; padding: 8px 12px; font-size: 12px; margin-right: 4px; }
+        .btn-secundario:hover { background: #1565c0; }
+        .btn-restaurar { background: #43a047; color: white; padding: 6px 10px; font-size: 12px; margin-right: 4px; }
+        .btn-restaurar:hover { background: #2e7d32; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e0e0e0; }
         th { background: #f5f5f5; font-weight: 600; }
@@ -322,6 +326,65 @@
         }
         .sync-pending-badge.visible { display: block; }
 
+        /* ===== PIN LOCK SCREEN ===== */
+        .pin-overlay {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: white;
+        }
+        .pin-logo { font-size: 64px; margin-bottom: 10px; }
+        .pin-title { font-size: 28px; font-weight: bold; margin-bottom: 8px; }
+        .pin-subtitle { font-size: 15px; opacity: 0.9; margin-bottom: 30px; text-align: center; max-width: 380px; }
+        .pin-display {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+        .pin-dot {
+            width: 18px; height: 18px;
+            border-radius: 50%;
+            border: 2px solid white;
+            background: transparent;
+            transition: background 0.2s;
+        }
+        .pin-dot.filled { background: white; }
+        .pin-keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            max-width: 280px;
+            width: 100%;
+        }
+        .pin-key {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            font-size: 24px;
+            font-weight: bold;
+            padding: 0;
+            width: 70px; height: 70px;
+            justify-self: center;
+            cursor: pointer;
+            transition: all 0.15s;
+            min-height: 70px;
+        }
+        .pin-key:hover, .pin-key:active { background: rgba(255,255,255,0.3); transform: scale(0.95); }
+        .pin-key.special {
+            background: transparent;
+            border-color: transparent;
+            font-size: 14px;
+        }
+        .pin-error { color: #ffcdd2; min-height: 22px; margin-bottom: 10px; font-size: 14px; }
+        .pin-attempts-locked { color: #ffeb3b; }
+
         /* ===== MOBILE RESPONSIVE ===== */
         @media (max-width: 768px) {
             body { padding: 10px; padding-top: 50px; }
@@ -419,6 +482,21 @@
 
 </head>
 <body>
+    <!-- Pantalla de PIN (overlay full-screen) -->
+    <div class="pin-overlay" id="pin-overlay" style="display:none;">
+        <div class="pin-logo">🚜</div>
+        <div class="pin-title" id="pin-title">MundoVerde</div>
+        <div class="pin-subtitle" id="pin-subtitle">Ingresá tu PIN de 4 dígitos</div>
+        <div class="pin-display" id="pin-display">
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+        </div>
+        <div class="pin-error" id="pin-error"></div>
+        <div class="pin-keypad" id="pin-keypad"></div>
+    </div>
+
     <!-- Indicador de conexión -->
     <div class="connection-status online" id="connection-status">
         <div class="status-dot"></div>
@@ -435,7 +513,16 @@
 
     <div class="container">
         <div class="header">
-            <h1>🚜 MundoVerde - Sistema PRO</h1>
+            <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
+                <h1 style="margin:0;">🚜 MundoVerde - Sistema PRO</h1>
+                <div id="user-switcher" style="display:flex; align-items:center; gap:8px; background:#e8f5e9; padding:6px 12px; border-radius:20px; border:2px solid #2e7d32;">
+                    <span style="font-size:13px; color:#2e7d32;">Cargando como:</span>
+                    <select id="usuario-activo" style="border:none; background:transparent; font-weight:bold; color:#2e7d32; font-size:14px; cursor:pointer; padding:2px 4px; min-height:auto;">
+                        <option value="Emma">👩‍🌾 Emma</option>
+                        <option value="Pablo">👨‍🌾 Pablo</option>
+                    </select>
+                </div>
+            </div>
             
             <div class="stats">
                 <div class="stat-card purple">
@@ -477,9 +564,10 @@
             <div class="tab-list" id="tabs">
                 <button class="tab active" data-tab="trabajo">📝 Registro Trabajo</button>
                 <button class="tab" data-tab="pagos">💳 Pagos Tractoristas</button>
-                <button class="tab" data-tab="resumen-general">📊 Resumen General</button>
                 <button class="tab" data-tab="gastos">💰 Gastos</button>
+                <button class="tab" data-tab="movimientos">📋 Movimientos</button>
                 <button class="tab" data-tab="balance">⚖️ Balance Emma-Pablo</button>
+                <button class="tab" data-tab="resumen-general">📊 Resumen General</button>
                 <button class="tab" data-tab="dashboard">📈 Dashboard</button>
                 <button class="tab" data-tab="config">⚙️ Lotes & Config</button>
             </div>
@@ -491,6 +579,229 @@
     </div>
 
     <script>
+
+        // ===== SISTEMA DE PIN DE BLOQUEO =====
+        // PIN simple de 4 dígitos almacenado en localStorage. No reemplaza autenticación real,
+        // pero impide el acceso casual de alguien que conozca la URL.
+        const PIN_KEY = 'mundoverde_pin';
+        const PIN_ATTEMPTS_KEY = 'mundoverde_pin_attempts';
+        const PIN_LOCKED_UNTIL_KEY = 'mundoverde_pin_locked_until';
+        const PIN_USER_KEY = 'mundoverde_active_user';
+        let pinBuffer = '';
+        let pinMode = 'enter'; // 'enter' | 'set' | 'confirm' | 'change_old' | 'change_new' | 'change_confirm'
+        let pinTempNuevo = '';
+
+        function pinHash(pin) {
+            // Hash simple para no guardar el PIN en plano (no es criptográficamente seguro, pero ofusca)
+            let h = 5381;
+            for (let i = 0; i < pin.length; i++) h = ((h << 5) + h) + pin.charCodeAt(i);
+            return 'h_' + h.toString(36) + '_' + pin.length;
+        }
+
+        function pinExiste() {
+            return !!localStorage.getItem(PIN_KEY);
+        }
+
+        function pinBloqueado() {
+            const until = parseInt(localStorage.getItem(PIN_LOCKED_UNTIL_KEY), 10);
+            if (!until) return 0;
+            const restante = until - Date.now();
+            if (restante <= 0) {
+                localStorage.removeItem(PIN_LOCKED_UNTIL_KEY);
+                localStorage.removeItem(PIN_ATTEMPTS_KEY);
+                return 0;
+            }
+            return Math.ceil(restante / 1000);
+        }
+
+        function mostrarPantallaPin(modo = 'enter') {
+            pinMode = modo;
+            pinBuffer = '';
+            pinTempNuevo = '';
+            const overlay = document.getElementById('pin-overlay');
+            const title = document.getElementById('pin-title');
+            const subtitle = document.getElementById('pin-subtitle');
+            const error = document.getElementById('pin-error');
+            error.textContent = '';
+
+            const segundosBloqueo = pinBloqueado();
+            if (segundosBloqueo > 0 && modo === 'enter') {
+                error.innerHTML = '<span class="pin-attempts-locked">🔒 Bloqueado. Intentá en ' + segundosBloqueo + ' segundos.</span>';
+            }
+
+            if (modo === 'set') {
+                title.textContent = 'Configurar PIN';
+                subtitle.textContent = 'Elegí un PIN de 4 dígitos para tu app. Compartilo solo con personas de confianza.';
+            } else if (modo === 'confirm') {
+                title.textContent = 'Confirmar PIN';
+                subtitle.textContent = 'Repetí el mismo PIN para confirmarlo';
+            } else if (modo === 'change_old') {
+                title.textContent = 'PIN actual';
+                subtitle.textContent = 'Ingresá tu PIN actual para cambiarlo';
+            } else if (modo === 'change_new') {
+                title.textContent = 'Nuevo PIN';
+                subtitle.textContent = 'Ingresá el PIN nuevo';
+            } else if (modo === 'change_confirm') {
+                title.textContent = 'Confirmar nuevo PIN';
+                subtitle.textContent = 'Repetí el PIN nuevo';
+            } else {
+                title.textContent = 'MundoVerde';
+                subtitle.textContent = 'Ingresá tu PIN de 4 dígitos';
+            }
+
+            actualizarPinDots();
+            overlay.style.display = 'flex';
+            renderizarTeclado();
+        }
+
+        function actualizarPinDots() {
+            const dots = document.querySelectorAll('#pin-display .pin-dot');
+            dots.forEach((d, i) => {
+                if (i < pinBuffer.length) d.classList.add('filled');
+                else d.classList.remove('filled');
+            });
+        }
+
+        function renderizarTeclado() {
+            const keypad = document.getElementById('pin-keypad');
+            const teclas = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+            keypad.innerHTML = teclas.map(t => {
+                if (t === '') return '<div></div>';
+                const cls = (t === '⌫') ? 'pin-key special' : 'pin-key';
+                return '<button class="' + cls + '" data-key="' + t + '">' + t + '</button>';
+            }).join('');
+            keypad.querySelectorAll('.pin-key').forEach(btn => {
+                btn.onclick = () => onPinKey(btn.getAttribute('data-key'));
+            });
+        }
+
+        async function onPinKey(tecla) {
+            const error = document.getElementById('pin-error');
+            error.textContent = '';
+
+            if (pinBloqueado() > 0 && pinMode === 'enter') return;
+
+            if (tecla === '⌫') {
+                pinBuffer = pinBuffer.slice(0, -1);
+                actualizarPinDots();
+                return;
+            }
+
+            if (pinBuffer.length >= 4) return;
+            pinBuffer += tecla;
+            actualizarPinDots();
+
+            if (pinBuffer.length === 4) {
+                await procesarPinCompleto();
+            }
+        }
+
+        async function procesarPinCompleto() {
+            const error = document.getElementById('pin-error');
+            const overlay = document.getElementById('pin-overlay');
+
+            if (pinMode === 'set') {
+                pinTempNuevo = pinBuffer;
+                setTimeout(() => mostrarPantallaPin('confirm'), 250);
+                return;
+            }
+            if (pinMode === 'confirm') {
+                if (pinBuffer === pinTempNuevo) {
+                    localStorage.setItem(PIN_KEY, pinHash(pinBuffer));
+                    overlay.style.display = 'none';
+                    showToast('PIN configurado correctamente', 'success', 3000);
+                    iniciarTimerInactividad();
+                } else {
+                    error.textContent = '❌ Los PIN no coinciden, empezá de nuevo';
+                    setTimeout(() => mostrarPantallaPin('set'), 1200);
+                }
+                return;
+            }
+            if (pinMode === 'change_old') {
+                if (pinHash(pinBuffer) === localStorage.getItem(PIN_KEY)) {
+                    setTimeout(() => mostrarPantallaPin('change_new'), 200);
+                } else {
+                    error.textContent = '❌ PIN incorrecto';
+                    pinBuffer = '';
+                    setTimeout(() => actualizarPinDots(), 600);
+                }
+                return;
+            }
+            if (pinMode === 'change_new') {
+                pinTempNuevo = pinBuffer;
+                setTimeout(() => mostrarPantallaPin('change_confirm'), 250);
+                return;
+            }
+            if (pinMode === 'change_confirm') {
+                if (pinBuffer === pinTempNuevo) {
+                    localStorage.setItem(PIN_KEY, pinHash(pinBuffer));
+                    overlay.style.display = 'none';
+                    showToast('PIN actualizado', 'success', 3000);
+                    iniciarTimerInactividad();
+                } else {
+                    error.textContent = '❌ Los PIN no coinciden';
+                    setTimeout(() => mostrarPantallaPin('change_new'), 1200);
+                }
+                return;
+            }
+            // Modo enter
+            if (pinHash(pinBuffer) === localStorage.getItem(PIN_KEY)) {
+                localStorage.removeItem(PIN_ATTEMPTS_KEY);
+                overlay.style.display = 'none';
+                iniciarTimerInactividad();
+            } else {
+                let intentos = parseInt(localStorage.getItem(PIN_ATTEMPTS_KEY) || '0', 10) + 1;
+                localStorage.setItem(PIN_ATTEMPTS_KEY, String(intentos));
+                if (intentos >= 3) {
+                    localStorage.setItem(PIN_LOCKED_UNTIL_KEY, String(Date.now() + 30 * 1000));
+                    error.innerHTML = '<span class="pin-attempts-locked">🔒 Demasiados intentos. Bloqueado por 30s.</span>';
+                    pinBuffer = '';
+                    actualizarPinDots();
+                    setTimeout(() => mostrarPantallaPin('enter'), 30000);
+                } else {
+                    error.textContent = '❌ PIN incorrecto. Intento ' + intentos + ' de 3';
+                    pinBuffer = '';
+                    setTimeout(() => actualizarPinDots(), 500);
+                }
+            }
+        }
+
+        // Auto-bloqueo por inactividad (15 minutos por defecto)
+        let timerInactividad = null;
+        const INACTIVIDAD_MS = 15 * 60 * 1000;
+        function iniciarTimerInactividad() {
+            if (timerInactividad) clearTimeout(timerInactividad);
+            timerInactividad = setTimeout(() => {
+                if (pinExiste()) mostrarPantallaPin('enter');
+            }, INACTIVIDAD_MS);
+        }
+        function reiniciarTimerInactividad() {
+            iniciarTimerInactividad();
+        }
+
+        async function bloquearAhora() {
+            if (pinExiste()) {
+                mostrarPantallaPin('enter');
+            } else {
+                showToast('Primero configurá un PIN desde "Lotes & Config"', 'info', 3500);
+            }
+        }
+        async function cambiarPin() {
+            if (pinExiste()) mostrarPantallaPin('change_old');
+            else mostrarPantallaPin('set');
+        }
+        async function quitarPin() {
+            const ok = await confirmarModal('¿Quitar el PIN de bloqueo?\n\nLa app dejará de pedir clave al abrir.', { titulo: 'Quitar PIN', confirmar: 'Sí, quitar', peligroso: true });
+            if (ok) {
+                const ok2 = await confirmarModal('Confirmá una vez más. Sin PIN, cualquier persona con la URL puede ver tus datos.', { titulo: '¿Estás segura?', confirmar: 'Sí, dejá la app sin PIN', peligroso: true });
+                if (ok2) {
+                    localStorage.removeItem(PIN_KEY);
+                    localStorage.removeItem(PIN_ATTEMPTS_KEY);
+                    localStorage.removeItem(PIN_LOCKED_UNTIL_KEY);
+                    showToast('PIN eliminado', 'info', 2500);
+                }
+            }
+        }
 
         // ===== HELPERS DE UI: TOASTS, MODALES, SANITIZACIÓN =====
 
@@ -570,6 +881,661 @@
                 });
                 overlay.querySelector('#modal-cancel').onclick = () => cleanup(null);
                 overlay.onclick = (e) => { if (e.target === overlay) cleanup(null); };
+            });
+        }
+
+        // ===== HELPERS DE GRÁFICOS SVG (para Dashboard) =====
+        function barChartSVG(datos, opciones = {}) {
+            // datos: array de { label, value, color? }
+            if (!datos || datos.length === 0) return '<div style="color:#999;padding:20px;text-align:center;">Sin datos</div>';
+            const ancho = opciones.width || 600;
+            const alto = opciones.height || 280;
+            const margenIzq = 50, margenInf = 40, margenSup = 20, margenDer = 10;
+            const areaW = ancho - margenIzq - margenDer;
+            const areaH = alto - margenSup - margenInf;
+            const max = Math.max(...datos.map(d => d.value), 1);
+            const barWidth = areaW / datos.length * 0.7;
+            const barGap = areaW / datos.length * 0.3;
+            const colorDefault = opciones.color || '#43a047';
+
+            let bars = '';
+            datos.forEach((d, i) => {
+                const h = (d.value / max) * areaH;
+                const x = margenIzq + i * (barWidth + barGap) + barGap / 2;
+                const y = margenSup + (areaH - h);
+                const color = d.color || colorDefault;
+                bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barWidth.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + color + '" rx="4"/>';
+                bars += '<text x="' + (x + barWidth / 2).toFixed(1) + '" y="' + (y - 4).toFixed(1) + '" text-anchor="middle" font-size="11" fill="#333" font-weight="bold">' + escHtml(opciones.formatValue ? opciones.formatValue(d.value) : String(d.value)) + '</text>';
+                bars += '<text x="' + (x + barWidth / 2).toFixed(1) + '" y="' + (alto - margenInf + 16).toFixed(1) + '" text-anchor="middle" font-size="11" fill="#666">' + escHtml(d.label) + '</text>';
+            });
+
+            // Eje Y simple (3 marcas)
+            let ejeY = '';
+            for (let i = 0; i <= 3; i++) {
+                const v = (max / 3) * i;
+                const y = margenSup + areaH - (i / 3) * areaH;
+                ejeY += '<line x1="' + margenIzq + '" y1="' + y.toFixed(1) + '" x2="' + (ancho - margenDer) + '" y2="' + y.toFixed(1) + '" stroke="#e0e0e0" stroke-dasharray="3,3"/>';
+                ejeY += '<text x="' + (margenIzq - 6) + '" y="' + (y + 3).toFixed(1) + '" text-anchor="end" font-size="10" fill="#999">' + (opciones.formatAxisY ? opciones.formatAxisY(v) : Math.round(v)) + '</text>';
+            }
+
+            return '<svg viewBox="0 0 ' + ancho + ' ' + alto + '" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;">' + ejeY + bars + '</svg>';
+        }
+
+        function pieChartSVG(datos, opciones = {}) {
+            if (!datos || datos.length === 0) return '<div style="color:#999;padding:20px;text-align:center;">Sin datos</div>';
+            const total = datos.reduce((s, d) => s + d.value, 0);
+            if (total === 0) return '<div style="color:#999;padding:20px;text-align:center;">Sin datos para graficar</div>';
+            const tamano = opciones.size || 220;
+            const cx = tamano / 2, cy = tamano / 2, r = tamano / 2 - 10;
+            let angulo = -Math.PI / 2;
+            const colores = ['#ba68c8','#64b5f6','#81c784','#ffb74d','#ff8a65','#4db6ac','#9575cd'];
+            let slices = '';
+            let leyenda = '';
+            datos.forEach((d, i) => {
+                const sliceAngle = (d.value / total) * 2 * Math.PI;
+                const x1 = cx + r * Math.cos(angulo);
+                const y1 = cy + r * Math.sin(angulo);
+                angulo += sliceAngle;
+                const x2 = cx + r * Math.cos(angulo);
+                const y2 = cy + r * Math.sin(angulo);
+                const largeArc = sliceAngle > Math.PI ? 1 : 0;
+                const color = d.color || colores[i % colores.length];
+                slices += '<path d="M ' + cx + ',' + cy + ' L ' + x1.toFixed(2) + ',' + y1.toFixed(2) + ' A ' + r + ',' + r + ' 0 ' + largeArc + ',1 ' + x2.toFixed(2) + ',' + y2.toFixed(2) + ' Z" fill="' + color + '"/>';
+                const pct = (d.value / total * 100).toFixed(1);
+                leyenda += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:13px;"><span style="width:14px;height:14px;background:' + color + ';border-radius:3px;display:inline-block;"></span><span><strong>' + escHtml(d.label) + ':</strong> ' + (opciones.formatValue ? opciones.formatValue(d.value) : d.value) + ' (' + pct + '%)</span></div>';
+            });
+            return '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:20px;">' +
+                   '<svg viewBox="0 0 ' + tamano + ' ' + tamano + '" xmlns="http://www.w3.org/2000/svg" style="width:' + tamano + 'px;max-width:100%;">' + slices + '</svg>' +
+                   '<div style="flex:1;min-width:200px;">' + leyenda + '</div></div>';
+        }
+
+        function calcularDatosDashboard() {
+            // Trabajos por mes (últimos 6 meses)
+            const trabajos = activos(estado.trabajos);
+            const ahora = new Date();
+            const meses = [];
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date(ahora.getFullYear(), ahora.getMonth() - i, 1);
+                const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+                const label = d.toLocaleDateString('es-AR', { month: 'short' }) + ' ' + d.getFullYear().toString().slice(-2);
+                meses.push({ key, label, value: 0, hectareas: 0, monto: 0 });
+            }
+            trabajos.forEach(t => {
+                if (!t.fecha) return;
+                const key = t.fecha.substring(0, 7); // YYYY-MM
+                const m = meses.find(x => x.key === key);
+                if (!m) return;
+                m.value++;
+                m.monto += (t.actividad === 'Otra actividad') ? (parseFloat(t.precio) || 0) : ((parseFloat(t.cantidad) || 0) * (parseFloat(t.precio) || 0));
+                if (t.actividad !== 'Otra actividad' && t.actividad !== 'Rollos') {
+                    m.hectareas += parseFloat(t.cantidad) || 0;
+                }
+            });
+
+            // Gastos por pagador (Emma vs Pablo)
+            const gastos = activos(estado.gastosGenerales);
+            const gastosEmma = gastos.filter(g => g.pagador === 'Emma').reduce((s, g) => s + (parseFloat(g.monto) || 0), 0);
+            const gastosPablo = gastos.filter(g => g.pagador === 'Pablo').reduce((s, g) => s + (parseFloat(g.monto) || 0), 0);
+
+            // Top tractoristas por monto trabajado
+            const porTractorista = {};
+            estado.tractoristas.forEach(t => { porTractorista[t] = 0; });
+            trabajos.forEach(t => {
+                if (!porTractorista[t.tractorista] && porTractorista[t.tractorista] !== 0) porTractorista[t.tractorista] = 0;
+                const monto = (t.actividad === 'Otra actividad') ? (parseFloat(t.precio) || 0) : ((parseFloat(t.cantidad) || 0) * (parseFloat(t.precio) || 0));
+                porTractorista[t.tractorista] = (porTractorista[t.tractorista] || 0) + monto;
+            });
+            const topTractoristas = Object.entries(porTractorista)
+                .map(([nombre, monto]) => ({ label: nombre, value: monto }))
+                .sort((a, b) => b.value - a.value)
+                .slice(0, 5);
+
+            return { meses, gastosEmma, gastosPablo, topTractoristas };
+        }
+
+        // ===== MODAL DE EDICIÓN GENÉRICO =====
+        // Recibe título y array de campos { key, label, type, value, options? }
+        function abrirModalEdicion(titulo, campos, onSave) {
+            return new Promise((resolve) => {
+                const overlay = document.createElement('div');
+                overlay.className = 'modal-overlay';
+                let inputsHtml = '';
+                campos.forEach((c, idx) => {
+                    const id = 'edit-input-' + idx;
+                    const label = '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px;">' + escHtml(c.label) + '</label>';
+                    if (c.type === 'select') {
+                        const opts = (c.options || []).map(o => '<option value="' + escHtml(o.value) + '"' + (String(o.value) === String(c.value) ? ' selected' : '') + '>' + escHtml(o.label) + '</option>').join('');
+                        inputsHtml += '<div class="form-group" style="margin-bottom:12px;">' + label + '<select id="' + id + '">' + opts + '</select></div>';
+                    } else if (c.type === 'textarea') {
+                        inputsHtml += '<div class="form-group" style="margin-bottom:12px;">' + label + '<textarea id="' + id + '" rows="2">' + escHtml(c.value || '') + '</textarea></div>';
+                    } else {
+                        const tipo = c.type || 'text';
+                        const step = (tipo === 'number') ? ' step="0.01"' : '';
+                        inputsHtml += '<div class="form-group" style="margin-bottom:12px;">' + label + '<input id="' + id + '" type="' + tipo + '"' + step + ' value="' + escHtml(c.value !== undefined && c.value !== null ? String(c.value) : '') + '"></div>';
+                    }
+                });
+                overlay.innerHTML =
+                    '<div class="modal-box">' +
+                    '<h3>✏️ ' + escHtml(titulo) + '</h3>' +
+                    '<div>' + inputsHtml + '</div>' +
+                    '<div class="modal-actions">' +
+                    '<button id="modal-edit-cancel" style="background:#9e9e9e;color:white;">Cancelar</button>' +
+                    '<button id="modal-edit-save" class="btn-success">💾 Guardar cambios</button>' +
+                    '</div></div>';
+                document.body.appendChild(overlay);
+
+                const cleanup = (val) => { overlay.remove(); resolve(val); };
+                overlay.querySelector('#modal-edit-cancel').onclick = () => cleanup(null);
+                overlay.onclick = (e) => { if (e.target === overlay) cleanup(null); };
+                overlay.querySelector('#modal-edit-save').onclick = async () => {
+                    const valores = {};
+                    campos.forEach((c, idx) => {
+                        const el = overlay.querySelector('#edit-input-' + idx);
+                        valores[c.key] = el ? el.value : '';
+                    });
+                    const valido = await onSave(valores);
+                    if (valido !== false) cleanup(valores);
+                };
+            });
+        }
+
+        async function editarTrabajo(id) {
+            const t = estado.trabajos.find(x => x.id === id);
+            if (!t) return;
+            const tractoristasOpts = estado.tractoristas.map(n => ({ value: n, label: n }));
+            const lotesOpts = estado.lotes.map(l => ({ value: l.nombre, label: l.nombre }));
+            const actividadesOpts = estado.actividades.map(a => ({ value: a.nombre, label: a.nombre }));
+            await abrirModalEdicion('Editar Trabajo', [
+                { key: 'fecha', label: 'Fecha', type: 'date', value: t.fecha },
+                { key: 'tractorista', label: 'Tractorista', type: 'select', value: t.tractorista, options: tractoristasOpts },
+                { key: 'lote', label: 'Lote', type: 'select', value: t.lote, options: lotesOpts },
+                { key: 'actividad', label: 'Actividad', type: 'select', value: t.actividad, options: actividadesOpts },
+                { key: 'cantidad', label: 'Cantidad', type: 'number', value: t.cantidad },
+                { key: 'precio', label: 'Precio', type: 'number', value: t.precio },
+                { key: 'notas', label: 'Notas', type: 'textarea', value: t.notas }
+            ], async (v) => {
+                const cantidad = parseFloat(v.cantidad);
+                const precio = parseFloat(v.precio);
+                if (!v.fecha) { showToast('Fecha requerida', 'warning'); return false; }
+                if (v.actividad !== 'Otra actividad') {
+                    if (isNaN(cantidad) || cantidad <= 0) { showToast('Cantidad inválida', 'warning'); return false; }
+                }
+                if (isNaN(precio) || precio <= 0) { showToast('Precio inválido', 'warning'); return false; }
+                t.fecha = v.fecha;
+                t.tractorista = v.tractorista;
+                t.lote = v.lote;
+                t.actividad = v.actividad;
+                t.cantidad = v.actividad === 'Otra actividad' ? 1 : cantidad;
+                t.precio = precio;
+                t.notas = v.notas || '';
+                t.modificadoPor = obtenerUsuarioActivo();
+                t.modificadoEn = Date.now();
+                await guardar();
+                renderizar();
+                showToast('Trabajo actualizado', 'success', 2000);
+            });
+        }
+
+        async function editarPago(id) {
+            const p = estado.pagosTractoristas.find(x => x.id === id);
+            if (!p) return;
+            const tractoristasOpts = estado.tractoristas.map(n => ({ value: n, label: n }));
+            await abrirModalEdicion('Editar Pago', [
+                { key: 'fecha', label: 'Fecha', type: 'date', value: p.fecha },
+                { key: 'tractorista', label: 'Tractorista', type: 'select', value: p.tractorista, options: tractoristasOpts },
+                { key: 'pagador', label: 'Pagador', type: 'select', value: p.pagador, options: [{value:'Emma',label:'Emma'},{value:'Pablo',label:'Pablo'}] },
+                { key: 'monto', label: 'Monto', type: 'number', value: p.monto },
+                { key: 'concepto', label: 'Concepto', type: 'textarea', value: p.concepto }
+            ], async (v) => {
+                const monto = parseFloat(v.monto);
+                if (!v.fecha) { showToast('Fecha requerida', 'warning'); return false; }
+                if (isNaN(monto) || monto <= 0) { showToast('Monto inválido', 'warning'); return false; }
+                p.fecha = v.fecha;
+                p.tractorista = v.tractorista;
+                p.pagador = v.pagador;
+                p.monto = monto;
+                p.concepto = v.concepto || '';
+                p.modificadoPor = obtenerUsuarioActivo();
+                p.modificadoEn = Date.now();
+                await guardar();
+                renderizar();
+                showToast('Pago actualizado', 'success', 2000);
+            });
+        }
+
+        async function editarGasto(id) {
+            const g = estado.gastosGenerales.find(x => x.id === id);
+            if (!g) return;
+            await abrirModalEdicion('Editar Gasto', [
+                { key: 'fecha', label: 'Fecha', type: 'date', value: g.fecha },
+                { key: 'concepto', label: 'Concepto', type: 'text', value: g.concepto },
+                { key: 'pagador', label: 'Pagador', type: 'select', value: g.pagador, options: [{value:'Emma',label:'Emma'},{value:'Pablo',label:'Pablo'}] },
+                { key: 'monto', label: 'Monto', type: 'number', value: g.monto },
+                { key: 'detalle', label: 'Detalle', type: 'textarea', value: g.detalle }
+            ], async (v) => {
+                const monto = parseFloat(v.monto);
+                if (!v.fecha) { showToast('Fecha requerida', 'warning'); return false; }
+                if (!v.concepto || !v.concepto.trim()) { showToast('Concepto requerido', 'warning'); return false; }
+                if (isNaN(monto) || monto <= 0) { showToast('Monto inválido', 'warning'); return false; }
+                g.fecha = v.fecha;
+                g.concepto = v.concepto.trim();
+                g.pagador = v.pagador;
+                g.monto = monto;
+                g.detalle = v.detalle || '';
+                g.modificadoPor = obtenerUsuarioActivo();
+                g.modificadoEn = Date.now();
+                await guardar();
+                renderizar();
+                showToast('Gasto actualizado', 'success', 2000);
+            });
+        }
+
+        async function editarPagoBalance(id) {
+            const p = estado.pagosEntreEmmaYPablo.find(x => x.id === id);
+            if (!p) return;
+            await abrirModalEdicion('Editar Pago Emma-Pablo', [
+                { key: 'fecha', label: 'Fecha', type: 'date', value: p.fecha },
+                { key: 'pagador', label: 'Quien pagó', type: 'select', value: p.pagador, options: [{value:'Emma',label:'Emma'},{value:'Pablo',label:'Pablo'}] },
+                { key: 'monto', label: 'Monto', type: 'number', value: p.monto },
+                { key: 'concepto', label: 'Concepto', type: 'textarea', value: p.concepto }
+            ], async (v) => {
+                const monto = parseFloat(v.monto);
+                if (!v.fecha) { showToast('Fecha requerida', 'warning'); return false; }
+                if (isNaN(monto) || monto <= 0) { showToast('Monto inválido', 'warning'); return false; }
+                p.fecha = v.fecha;
+                p.pagador = v.pagador;
+                p.monto = monto;
+                p.concepto = v.concepto || '';
+                p.modificadoPor = obtenerUsuarioActivo();
+                p.modificadoEn = Date.now();
+                await guardar();
+                renderizar();
+                showToast('Pago actualizado', 'success', 2000);
+            });
+        }
+
+        async function editarLote(id) {
+            const l = estado.lotes.find(x => x.id === id);
+            if (!l) return;
+            await abrirModalEdicion('Editar Lote', [
+                { key: 'nombre', label: 'Nombre', type: 'text', value: l.nombre },
+                { key: 'largo', label: 'Largo (m)', type: 'number', value: l.largo },
+                { key: 'ancho', label: 'Ancho (m)', type: 'number', value: l.ancho }
+            ], async (v) => {
+                if (!v.nombre || !v.nombre.trim()) { showToast('Nombre requerido', 'warning'); return false; }
+                const largo = parseFloat(v.largo);
+                const ancho = parseFloat(v.ancho);
+                if (isNaN(largo) || largo <= 0 || isNaN(ancho) || ancho <= 0) { showToast('Dimensiones inválidas', 'warning'); return false; }
+                if (estado.lotes.some(x => x.id !== id && x.nombre.toLowerCase() === v.nombre.trim().toLowerCase())) {
+                    showToast('Ya existe otro lote con ese nombre', 'warning');
+                    return false;
+                }
+                const nombreAnterior = l.nombre;
+                l.nombre = v.nombre.trim();
+                l.largo = largo;
+                l.ancho = ancho;
+                // Si cambió el nombre, actualizar también los trabajos que usaban el nombre viejo
+                if (nombreAnterior !== l.nombre) {
+                    estado.trabajos.forEach(t => { if (t.lote === nombreAnterior) t.lote = l.nombre; });
+                }
+                await guardar();
+                renderizar();
+                showToast('Lote actualizado', 'success', 2000);
+            });
+        }
+
+        // ===== FILTROS Y BÚSQUEDA POR TABLA =====
+        // Cada tabla tiene su propio set de filtros (texto, rango fechas, tractorista, lote)
+        const filtros = {
+            trabajos: { texto: '', desde: '', hasta: '', tractorista: '', lote: '' },
+            pagos: { texto: '', desde: '', hasta: '', tractorista: '' },
+            gastos: { texto: '', desde: '', hasta: '', pagador: '' },
+            balance: { texto: '', desde: '', hasta: '', pagador: '' },
+            movimientos: { texto: '', desde: '', hasta: '', pagador: '', tipo: '' }
+        };
+
+        // Helper: lista unificada de TODOS los movimientos para la pestaña Movimientos.
+        // Une pagos a tractoristas + gastos generales + pagos entre Emma y Pablo en un único array.
+        function obtenerMovimientosUnificados() {
+            const movs = [];
+            activos(estado.pagosTractoristas).forEach(p => {
+                movs.push({
+                    id: 'p_' + p.id,
+                    refId: p.id,
+                    tipo: 'pago-tractorista',
+                    tipoLabel: '💳 Pago Tractorista',
+                    fecha: p.fecha,
+                    pagador: p.pagador,
+                    monto: p.monto,
+                    detalle: 'A ' + (p.tractorista || '?') + (p.concepto ? ' — ' + p.concepto : ''),
+                    creadoEn: p.creadoEn || p.id,
+                    cargadoPor: p.cargadoPor || ''
+                });
+            });
+            activos(estado.gastosGenerales).forEach(g => {
+                movs.push({
+                    id: 'g_' + g.id,
+                    refId: g.id,
+                    tipo: 'gasto',
+                    tipoLabel: '💰 Gasto',
+                    fecha: g.fecha,
+                    pagador: g.pagador,
+                    monto: g.monto,
+                    detalle: (g.concepto || '') + (g.detalle ? ' — ' + g.detalle : ''),
+                    creadoEn: g.creadoEn || g.id,
+                    cargadoPor: g.cargadoPor || ''
+                });
+            });
+            activos(estado.pagosEntreEmmaYPablo).forEach(b => {
+                movs.push({
+                    id: 'b_' + b.id,
+                    refId: b.id,
+                    tipo: 'balance',
+                    tipoLabel: '⚖️ Pago Emma-Pablo',
+                    fecha: b.fecha,
+                    pagador: b.pagador,
+                    monto: b.monto,
+                    detalle: 'A ' + (b.pagador === 'Emma' ? 'Pablo' : 'Emma') + (b.concepto ? ' — ' + b.concepto : ''),
+                    creadoEn: b.creadoEn || b.id,
+                    cargadoPor: b.cargadoPor || ''
+                });
+            });
+            return movs;
+        }
+
+        // Filtrado específico para la tabla unificada de Movimientos
+        function filtrarMovimientos(arr) {
+            const f = filtros.movimientos;
+            const texto = (f.texto || '').toLowerCase();
+            const desde = f.desde ? new Date(f.desde + 'T00:00:00').getTime() : null;
+            const hasta = f.hasta ? new Date(f.hasta + 'T23:59:59').getTime() : null;
+            return arr.filter(m => {
+                if (texto) {
+                    const blob = (m.tipoLabel + ' ' + (m.pagador || '') + ' ' + (m.detalle || '')).toLowerCase();
+                    if (!blob.includes(texto)) return false;
+                }
+                if (desde || hasta) {
+                    const ts = m.fecha ? new Date(m.fecha + 'T00:00:00').getTime() : null;
+                    if (!ts || isNaN(ts)) return false;
+                    if (desde && ts < desde) return false;
+                    if (hasta && ts > hasta) return false;
+                }
+                if (f.pagador && m.pagador !== f.pagador) return false;
+                if (f.tipo && m.tipo !== f.tipo) return false;
+                return true;
+            });
+        }
+        function actualizarFiltro(tabla, campo, valor) {
+            if (!filtros[tabla]) return;
+            filtros[tabla][campo] = (valor || '').trim();
+            renderizar();
+        }
+        function limpiarFiltros(tabla) {
+            if (!filtros[tabla]) return;
+            Object.keys(filtros[tabla]).forEach(k => filtros[tabla][k] = '');
+            renderizar();
+        }
+        function filtrarRegistros(arr, tabla) {
+            const f = filtros[tabla];
+            if (!f) return arr;
+            const texto = (f.texto || '').toLowerCase();
+            const desde = f.desde ? new Date(f.desde + 'T00:00:00').getTime() : null;
+            const hasta = f.hasta ? new Date(f.hasta + 'T23:59:59').getTime() : null;
+            return arr.filter(r => {
+                // Filtro texto: busca en todos los campos string
+                if (texto) {
+                    const blob = JSON.stringify(r).toLowerCase();
+                    if (!blob.includes(texto)) return false;
+                }
+                // Filtro rango fechas
+                if (desde || hasta) {
+                    const ts = r.fecha ? new Date(r.fecha + 'T00:00:00').getTime() : null;
+                    if (!ts || isNaN(ts)) return false;
+                    if (desde && ts < desde) return false;
+                    if (hasta && ts > hasta) return false;
+                }
+                // Filtros específicos
+                if (f.tractorista && r.tractorista !== f.tractorista) return false;
+                if (f.lote && r.lote !== f.lote) return false;
+                if (f.pagador && r.pagador !== f.pagador) return false;
+                return true;
+            });
+        }
+        function renderFiltrosUI(tabla) {
+            const f = filtros[tabla] || {};
+            const tractoristasOpts = estado.tractoristas.map(t => `<option value="${escHtml(t)}" ${f.tractorista===t?'selected':''}>${escHtml(t)}</option>`).join('');
+            const lotesOpts = estado.lotes.map(l => `<option value="${escHtml(l.nombre)}" ${f.lote===l.nombre?'selected':''}>${escHtml(l.nombre)}</option>`).join('');
+            const camposExtra = {
+                trabajos: `<select onchange="actualizarFiltro('trabajos','tractorista',this.value)" style="min-width:140px;"><option value="">Todos los tractoristas</option>${tractoristasOpts}</select>
+                           <select onchange="actualizarFiltro('trabajos','lote',this.value)" style="min-width:140px;"><option value="">Todos los lotes</option>${lotesOpts}</select>`,
+                pagos: `<select onchange="actualizarFiltro('pagos','tractorista',this.value)" style="min-width:140px;"><option value="">Todos los tractoristas</option>${tractoristasOpts}</select>`,
+                gastos: `<select onchange="actualizarFiltro('gastos','pagador',this.value)" style="min-width:140px;"><option value="">Emma y Pablo</option><option value="Emma" ${f.pagador==='Emma'?'selected':''}>Emma</option><option value="Pablo" ${f.pagador==='Pablo'?'selected':''}>Pablo</option></select>`,
+                balance: `<select onchange="actualizarFiltro('balance','pagador',this.value)" style="min-width:140px;"><option value="">Emma y Pablo</option><option value="Emma" ${f.pagador==='Emma'?'selected':''}>Emma</option><option value="Pablo" ${f.pagador==='Pablo'?'selected':''}>Pablo</option></select>`
+            };
+            return `
+                <div class="filtros-bar" style="background:#f5f5f5;padding:12px;border-radius:8px;margin-bottom:15px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                    <input type="text" placeholder="🔍 Buscar..." value="${escHtml(f.texto || '')}" oninput="actualizarFiltro('${tabla}','texto',this.value)" style="flex:1;min-width:160px;">
+                    <input type="date" title="Desde" value="${escHtml(f.desde || '')}" onchange="actualizarFiltro('${tabla}','desde',this.value)" style="min-width:140px;">
+                    <input type="date" title="Hasta" value="${escHtml(f.hasta || '')}" onchange="actualizarFiltro('${tabla}','hasta',this.value)" style="min-width:140px;">
+                    ${camposExtra[tabla] || ''}
+                    <button onclick="limpiarFiltros('${tabla}')" style="background:#9e9e9e;color:white;padding:8px 12px;font-size:13px;">Limpiar</button>
+                </div>
+            `;
+        }
+
+        // ===== PAPELERA DE RECICLAJE (soft-delete con auto-purga a 7 días) =====
+        const PAPELERA_DIAS = 7;
+        // Devuelve solo los registros activos (no eliminados) — se usa en cálculos y tablas principales
+        function activos(arr) {
+            if (!Array.isArray(arr)) return [];
+            return arr.filter(x => !x.eliminado);
+        }
+        // Devuelve los registros eliminados pero recuperables (no purgados)
+        function eliminados(arr) {
+            if (!Array.isArray(arr)) return [];
+            return arr.filter(x => x.eliminado);
+        }
+        // Auto-purga: borra definitivamente los registros eliminados hace más de 7 días
+        function purgarPapeleraAntigua() {
+            const limite = Date.now() - PAPELERA_DIAS * 24 * 60 * 60 * 1000;
+            let purgados = 0;
+            ['trabajos','pagosTractoristas','gastosGenerales','pagosEntreEmmaYPablo'].forEach(k => {
+                if (Array.isArray(estado[k])) {
+                    const antes = estado[k].length;
+                    estado[k] = estado[k].filter(x => !(x.eliminado && x.eliminado < limite));
+                    purgados += antes - estado[k].length;
+                }
+            });
+            return purgados;
+        }
+        async function restaurarRegistro(tipo, id) {
+            const mapKey = { trabajo: 'trabajos', pago: 'pagosTractoristas', gasto: 'gastosGenerales', 'pago-balance': 'pagosEntreEmmaYPablo' };
+            const k = mapKey[tipo];
+            if (!k) return;
+            const item = estado[k].find(x => x.id === id);
+            if (item) {
+                delete item.eliminado;
+                delete item.eliminadoPor;
+                await guardar();
+                renderizar();
+                showToast('Registro restaurado', 'success', 2500);
+            }
+        }
+        async function eliminarDefinitivo(tipo, id) {
+            const ok = await confirmarModal('¿Borrar este registro DEFINITIVAMENTE?\n\nEsta acción no se puede deshacer.', { titulo: 'Borrado permanente', confirmar: 'Sí, borrar definitivamente', peligroso: true });
+            if (!ok) return;
+            const mapKey = { trabajo: 'trabajos', pago: 'pagosTractoristas', gasto: 'gastosGenerales', 'pago-balance': 'pagosEntreEmmaYPablo' };
+            const k = mapKey[tipo];
+            if (!k) return;
+            estado[k] = estado[k].filter(x => x.id !== id);
+            await guardar();
+            renderizar();
+            showToast('Registro borrado definitivamente', 'info', 2500);
+        }
+        async function abrirPapelera() {
+            const items = [];
+            const ahora = Date.now();
+            const tope = PAPELERA_DIAS * 24 * 60 * 60 * 1000;
+            const desc = (item, tipo) => {
+                const dias = Math.max(0, Math.floor((tope - (ahora - item.eliminado)) / (24 * 60 * 60 * 1000)));
+                let resumen = '';
+                if (tipo === 'trabajo') resumen = item.tractorista + ' - ' + item.actividad + ' - ' + (item.actividad === 'Otra actividad' ? '$' + formatearNumero(item.precio) : item.cantidad);
+                else if (tipo === 'pago') resumen = item.tractorista + ' - $' + formatearNumero(item.monto);
+                else if (tipo === 'gasto') resumen = item.concepto + ' - $' + formatearNumero(item.monto);
+                else if (tipo === 'pago-balance') resumen = item.pagador + ' → $' + formatearNumero(item.monto);
+                return { id: item.id, tipo, fecha: item.fecha, eliminado: item.eliminado, eliminadoPor: item.eliminadoPor, resumen, dias };
+            };
+            eliminados(estado.trabajos).forEach(t => items.push(desc(t, 'trabajo')));
+            eliminados(estado.pagosTractoristas).forEach(p => items.push(desc(p, 'pago')));
+            eliminados(estado.gastosGenerales).forEach(g => items.push(desc(g, 'gasto')));
+            eliminados(estado.pagosEntreEmmaYPablo).forEach(p => items.push(desc(p, 'pago-balance')));
+            items.sort((a, b) => b.eliminado - a.eliminado);
+
+            if (items.length === 0) {
+                showToast('La papelera está vacía', 'info', 2000);
+                return;
+            }
+
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            const tipoLabel = { trabajo: '📝 Trabajo', pago: '💳 Pago', gasto: '💰 Gasto', 'pago-balance': '⚖️ Pago Emma-Pablo' };
+            const filas = items.map(it =>
+                '<div class="card" style="background:white;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
+                '<div style="flex:1;min-width:200px;">' +
+                '<div style="font-weight:bold;">' + escHtml(tipoLabel[it.tipo] || it.tipo) + '</div>' +
+                '<div style="font-size:13px;color:#666;">' + escHtml(it.resumen) + '</div>' +
+                '<div style="font-size:11px;color:#999;">📅 ' + escHtml(formatearFecha(it.fecha)) + ' | Eliminado por ' + escHtml(it.eliminadoPor || '?') + ' | Quedan ' + it.dias + ' días</div>' +
+                '</div>' +
+                '<div style="display:flex;gap:6px;">' +
+                '<button class="btn-restaurar btn-restaurar" data-tipo="' + it.tipo + '" data-id="' + it.id + '">♻️ Restaurar</button>' +
+                '<button class="btn-danger btn-borrar-definitivo" data-tipo="' + it.tipo + '" data-id="' + it.id + '">❌ Borrar</button>' +
+                '</div></div>'
+            ).join('');
+            overlay.innerHTML =
+                '<div class="modal-box" style="max-width:700px;">' +
+                '<h3>🗑️ Papelera de Reciclaje</h3>' +
+                '<p style="color:#666;font-size:13px;margin-bottom:15px;">Los registros se borran automáticamente después de 7 días. Podés restaurarlos o borrarlos definitivamente desde acá.</p>' +
+                '<div id="papelera-items">' + filas + '</div>' +
+                '<div class="modal-actions">' +
+                '<button id="modal-papelera-cerrar" class="btn-success">Cerrar</button>' +
+                '</div></div>';
+            document.body.appendChild(overlay);
+            const cleanup = () => overlay.remove();
+            overlay.querySelector('#modal-papelera-cerrar').onclick = cleanup;
+            overlay.onclick = (e) => { if (e.target === overlay) cleanup(); };
+
+            // Reusar handlers globales: la delegación los captura, pero como están dentro del modal hay que atar uno propio
+            overlay.addEventListener('click', async (e) => {
+                const btnR = e.target.closest('.btn-restaurar');
+                if (btnR) {
+                    await restaurarRegistro(btnR.getAttribute('data-tipo'), parseInt(btnR.getAttribute('data-id')));
+                    cleanup();
+                    return;
+                }
+                const btnD = e.target.closest('.btn-borrar-definitivo');
+                if (btnD) {
+                    await eliminarDefinitivo(btnD.getAttribute('data-tipo'), parseInt(btnD.getAttribute('data-id')));
+                    cleanup();
+                    return;
+                }
+            });
+        }
+
+        async function vaciarPapelera() {
+            const totalEliminados = eliminados(estado.trabajos).length + eliminados(estado.pagosTractoristas).length + eliminados(estado.gastosGenerales).length + eliminados(estado.pagosEntreEmmaYPablo).length;
+            if (totalEliminados === 0) { showToast('La papelera ya está vacía', 'info', 2000); return; }
+            const ok = await confirmarModal('¿Vaciar la papelera?\n\nSe van a borrar definitivamente ' + totalEliminados + ' registros.', { titulo: 'Vaciar papelera', confirmar: 'Sí, vaciar', peligroso: true });
+            if (!ok) return;
+            estado.trabajos = activos(estado.trabajos);
+            estado.pagosTractoristas = activos(estado.pagosTractoristas);
+            estado.gastosGenerales = activos(estado.gastosGenerales);
+            estado.pagosEntreEmmaYPablo = activos(estado.pagosEntreEmmaYPablo);
+            await guardar();
+            renderizar();
+            showToast('Papelera vaciada', 'info', 2500);
+        }
+
+        // ===== FUNCIÓN "EQUILIBRAR AHORA" =====
+        // Calcula cuánto y de quién a quién hay que pagar para equilibrar, y precarga el formulario.
+        async function equilibrarAhora() {
+            const bc = calcularBalanceCompleto();
+            if (Math.abs(bc.diferencia) < 0.01) {
+                showToast('Ya están equilibrados ✅', 'success', 2500);
+                return;
+            }
+            const quienPaga = bc.diferencia > 0 ? 'Pablo' : 'Emma';
+            const aQuien = quienPaga === 'Pablo' ? 'Emma' : 'Pablo';
+            const monto = bc.montoParaEquilibrar;
+
+            const ok = await confirmarModal(
+                'Para equilibrar las cuentas:\n\n' +
+                quienPaga + ' le tiene que pagar a ' + aQuien + ': $' + formatearNumero(monto) + '\n\n' +
+                '¿Querés registrar este pago ahora?',
+                { titulo: '⚡ Equilibrar ahora', confirmar: 'Sí, registrar pago', cancelar: 'No' }
+            );
+            if (!ok) return;
+
+            // Cambiamos a la pestaña de Balance Emma-Pablo y precargamos el formulario
+            tabActual = 'balance';
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            const tabBtn = document.querySelector('.tab[data-tab="balance"]');
+            if (tabBtn) tabBtn.classList.add('active');
+            renderizar();
+
+            // Esperar un tick para que el DOM exista
+            setTimeout(() => {
+                const fechaInput = document.getElementById('b-fecha');
+                const pagadorInput = document.getElementById('b-pagador');
+                const montoInput = document.getElementById('b-monto');
+                const conceptoInput = document.getElementById('b-concepto');
+                if (fechaInput) fechaInput.value = new Date().toISOString().split('T')[0];
+                if (pagadorInput) pagadorInput.value = quienPaga;
+                if (montoInput) montoInput.value = monto.toFixed(2);
+                if (conceptoInput) conceptoInput.value = 'Equilibrio de cuentas (auto)';
+                if (montoInput) {
+                    montoInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    montoInput.focus();
+                }
+                showToast('Formulario precargado. Revisá el monto y dale "Registrar Pago" para confirmar', 'info', 5000);
+            }, 200);
+        }
+
+        // ===== RECORDATORIO DE EXPORT EXCEL (cada 30 días) =====
+        const ULTIMO_EXPORT_KEY = 'mundoverde_ultimo_export_excel';
+        const DIAS_ENTRE_RECORDATORIOS = 30;
+        function marcarExportRealizado() {
+            localStorage.setItem(ULTIMO_EXPORT_KEY, String(Date.now()));
+        }
+        function verificarRecordatorioExport() {
+            const ultimo = parseInt(localStorage.getItem(ULTIMO_EXPORT_KEY), 10);
+            const hayDatos = activos(estado.trabajos).length + activos(estado.pagosTractoristas).length + activos(estado.gastosGenerales).length > 0;
+            if (!hayDatos) return; // No hace falta recordar si está vacío
+            if (!ultimo) {
+                // Primera vez: marcar como recién hecho para no molestar de entrada
+                marcarExportRealizado();
+                return;
+            }
+            const diasSinExport = Math.floor((Date.now() - ultimo) / (24 * 60 * 60 * 1000));
+            if (diasSinExport >= DIAS_ENTRE_RECORDATORIOS) {
+                showToast('Hace ' + diasSinExport + ' días que no exportás a Excel. Conviene tener un backup físico cada tanto. 📥', 'info', 7000);
+            }
+        }
+
+        // ===== USUARIO ACTIVO (Emma / Pablo) =====
+        // Identifica quién está cargando datos en este momento. Se guarda en localStorage por dispositivo.
+        function obtenerUsuarioActivo() {
+            return localStorage.getItem(PIN_USER_KEY) || 'Emma';
+        }
+        function guardarUsuarioActivo(nombre) {
+            localStorage.setItem(PIN_USER_KEY, nombre);
+        }
+        function inicializarSelectorUsuario() {
+            const sel = document.getElementById('usuario-activo');
+            if (!sel) return;
+            sel.value = obtenerUsuarioActivo();
+            sel.addEventListener('change', function() {
+                guardarUsuarioActivo(this.value);
+                showToast('Ahora cargás como ' + this.value, 'info', 2000);
             });
         }
 
@@ -1375,15 +2341,17 @@
         }
 
         function calcularTotales() {
-            const total = estado.trabajos.reduce((s, t) => {
+            const trabajosActivos = activos(estado.trabajos);
+            const pagosActivos = activos(estado.pagosTractoristas);
+            const total = trabajosActivos.reduce((s, t) => {
                 const cantidad = isNaN(t.cantidad) ? 0 : t.cantidad;
                 const precio = isNaN(t.precio) ? 0 : t.precio;
                 // Para "Otra actividad", usar precio directamente sin multiplicar
                 const monto = t.actividad === 'Otra actividad' ? precio : (cantidad * precio);
                 return s + monto;
             }, 0);
-            const emmaPagado = estado.pagosTractoristas.filter(p => p.pagador === 'Emma').reduce((s, p) => s + (isNaN(p.monto) ? 0 : p.monto), 0);
-            const pabloPagado = estado.pagosTractoristas.filter(p => p.pagador === 'Pablo').reduce((s, p) => s + (isNaN(p.monto) ? 0 : p.monto), 0);
+            const emmaPagado = pagosActivos.filter(p => p.pagador === 'Emma').reduce((s, p) => s + (isNaN(p.monto) ? 0 : p.monto), 0);
+            const pabloPagado = pagosActivos.filter(p => p.pagador === 'Pablo').reduce((s, p) => s + (isNaN(p.monto) ? 0 : p.monto), 0);
             
             return {
                 total,
@@ -1395,7 +2363,7 @@
         }
 
         function calcularPorTractorista(nombre) {
-            const trabajos = estado.trabajos.filter(t => t.tractorista === nombre);
+            const trabajos = activos(estado.trabajos).filter(t => t.tractorista === nombre);
             const trabajado = trabajos.reduce((s, t) => {
                 const cantidad = isNaN(t.cantidad) ? 0 : t.cantidad;
                 const precio = isNaN(t.precio) ? 0 : t.precio;
@@ -1403,7 +2371,7 @@
                 const monto = t.actividad === 'Otra actividad' ? precio : (cantidad * precio);
                 return s + monto;
             }, 0);
-            const pagos = estado.pagosTractoristas.filter(p => p.tractorista === nombre);
+            const pagos = activos(estado.pagosTractoristas).filter(p => p.tractorista === nombre);
             const pagado = pagos.reduce((s, p) => s + (isNaN(p.monto) ? 0 : p.monto), 0);
             const emmaPago = pagos.filter(p => p.pagador === 'Emma').reduce((s, p) => s + (isNaN(p.monto) ? 0 : p.monto), 0);
             const pabloPago = pagos.filter(p => p.pagador === 'Pablo').reduce((s, p) => s + (isNaN(p.monto) ? 0 : p.monto), 0);
@@ -1579,6 +2547,8 @@
                         <button class="btn-success" onclick="agregarTrabajo()" ${(sinLotes || sinTractoristas || sinActividades) ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>➕ Registrar Trabajo</button>
                     </div>
 
+                    ${renderFiltrosUI('trabajos')}
+
                     <table>
                         <thead>
                             <tr>
@@ -1589,29 +2559,54 @@
                                 <th>Cantidad</th>
                                 <th>Total</th>
                                 <th>Notas</th>
-                                <th></th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${ordenarPorFecha(estado.trabajos).map(t => `
+                            ${ordenarPorFecha(filtrarRegistros(activos(estado.trabajos), 'trabajos')).map(t => `
                                 <tr>
-                                    <td>${formatearFecha(t.fecha)}</td>
+                                    <td>${formatearFecha(t.fecha)}${t.cargadoPor ? '<br><span style="font-size:10px;color:#999;">por ' + escHtml(t.cargadoPor) + '</span>' : ''}</td>
                                     <td>${escHtml(t.tractorista)}</td>
                                     <td>${escHtml(t.lote)}</td>
                                     <td>${escHtml(t.actividad)}</td>
                                     <td>${t.actividad === 'Otra actividad' ? '-' : escHtml(String(t.cantidad))}</td>
                                     <td>$${formatearNumero(t.actividad === 'Otra actividad' ? t.precio : (t.cantidad * t.precio))}</td>
                                     <td style="font-size: 12px; color: #666;">${escHtml(t.notas) || '-'}</td>
-                                    <td><button class="btn-danger btn-eliminar" data-tipo="trabajo" data-id="${t.id}">🗑️</button></td>
+                                    <td style="white-space:nowrap;">
+                                        <button class="btn-secundario btn-editar" data-tipo="trabajo" data-id="${t.id}" title="Editar">✏️</button>
+                                        <button class="btn-danger btn-eliminar" data-tipo="trabajo" data-id="${t.id}" title="Eliminar">🗑️</button>
+                                    </td>
                                 </tr>
-                            `).join('') || '<tr><td colspan="8" style="text-align:center;">No hay trabajos</td></tr>'}
+                            `).join('') || '<tr><td colspan="8" style="text-align:center;">No hay trabajos que coincidan</td></tr>'}
                         </tbody>
                     </table>
                 `;
             } else if (tabActual === 'config') {
+                const totalEliminados = eliminados(estado.trabajos).length + eliminados(estado.pagosTractoristas).length + eliminados(estado.gastosGenerales).length + eliminados(estado.pagosEntreEmmaYPablo).length;
                 contenedor.innerHTML = `
                     <h2>Lotes & Configuración</h2>
-                    
+
+                    <!-- Sección de seguridad y mantenimiento -->
+                    <div class="card" style="background: #f3e5f5; border: 2px solid #ba68c8; margin-bottom: 20px;">
+                        <h3 style="color: #6a1b9a;">🔐 Seguridad</h3>
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+                            <button class="btn-success" onclick="cambiarPin()">${pinExiste() ? '🔑 Cambiar PIN' : '🔐 Configurar PIN'}</button>
+                            ${pinExiste() ? '<button class="btn-secundario" onclick="bloquearAhora()">🔒 Bloquear ahora</button>' : ''}
+                            ${pinExiste() ? '<button class="btn-danger" onclick="quitarPin()">❌ Quitar PIN</button>' : ''}
+                        </div>
+                        <p style="font-size:13px;color:#666;margin-top:10px;">${pinExiste() ? 'PIN configurado. La app pide clave al abrir.' : 'Sin PIN. Cualquiera con la URL puede entrar. Configurá uno.'}</p>
+                    </div>
+
+                    <!-- Sección de papelera -->
+                    <div class="card" style="background: #fff3e0; border: 2px solid #ff9800; margin-bottom: 20px;">
+                        <h3 style="color: #e65100;">🗑️ Papelera (auto-purga 7 días)</h3>
+                        <p style="margin:10px 0;">Tenés <strong>${totalEliminados}</strong> registros en la papelera.</p>
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                            <button class="btn-secundario" onclick="abrirPapelera()" ${totalEliminados === 0 ? 'disabled style="opacity:0.5;"' : ''}>📂 Ver papelera</button>
+                            <button class="btn-danger" onclick="vaciarPapelera()" ${totalEliminados === 0 ? 'disabled style="opacity:0.5;"' : ''}>🗑️ Vaciar papelera</button>
+                        </div>
+                    </div>
+
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
                         <div>
                             <h3>Lotes</h3>
@@ -1636,6 +2631,7 @@
                                 <div class="card">
                                     <h4>${escHtml(l.nombre)}</h4>
                                     <p>📏 ${escHtml(String(l.largo))}m x ${escHtml(String(l.ancho))}m = ${calcularHa(l.largo, l.ancho)} ha</p>
+                                    <button class="btn-secundario btn-editar" data-tipo="lote" data-id="${l.id}">✏️ Editar</button>
                                     <button class="btn-danger btn-eliminar" data-tipo="lote" data-id="${l.id}">🗑️ Eliminar</button>
                                 </div>
                             `).join('')}
@@ -1727,6 +2723,7 @@
                     </div>
                     
                     <h3 style="margin-top: 30px;">Historial de Pagos</h3>
+                    ${renderFiltrosUI('pagos')}
                     <table>
                         <thead>
                             <tr>
@@ -1736,21 +2733,24 @@
                                 <th>A Quien</th>
                                 <th>Monto</th>
                                 <th>Concepto</th>
-                                <th></th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${ordenarPorFecha(estado.pagosTractoristas).map(p => `
+                            ${ordenarPorFecha(filtrarRegistros(activos(estado.pagosTractoristas), 'pagos')).map(p => `
                                 <tr>
-                                    <td>${formatearFecha(p.fecha)}</td>
+                                    <td>${formatearFecha(p.fecha)}${p.cargadoPor ? '<br><span style="font-size:10px;color:#999;">por ' + escHtml(p.cargadoPor) + '</span>' : ''}</td>
                                     <td>${escHtml(p.tractorista)}</td>
                                     <td><span style="color: ${p.pagador === 'Emma' ? '#ba68c8' : '#64b5f6'}; font-weight: bold;">${escHtml(p.pagador)}</span></td>
                                     <td><span style="color: ${p.pagador === 'Emma' ? '#64b5f6' : '#ba68c8'}; font-weight: bold;">${p.pagador === 'Emma' ? 'Pablo' : 'Emma'}</span></td>
                                     <td>$${formatearNumero(p.monto)}</td>
                                     <td style="font-size: 12px; color: #666;">${escHtml(p.concepto) || '-'}</td>
-                                    <td><button class="btn-danger btn-eliminar" data-tipo="pago" data-id="${p.id}">🗑️</button></td>
+                                    <td style="white-space:nowrap;">
+                                        <button class="btn-secundario btn-editar" data-tipo="pago" data-id="${p.id}" title="Editar">✏️</button>
+                                        <button class="btn-danger btn-eliminar" data-tipo="pago" data-id="${p.id}" title="Eliminar">🗑️</button>
+                                    </td>
                                 </tr>
-                            `).join('') || '<tr><td colspan="7" style="text-align:center;">No hay pagos registrados</td></tr>'}
+                            `).join('') || '<tr><td colspan="7" style="text-align:center;">No hay pagos que coincidan</td></tr>'}
                         </tbody>
                     </table>
                 `;
@@ -1929,6 +2929,7 @@
                     </div>
                     
                     <h3>Historial de Gastos</h3>
+                    ${renderFiltrosUI('gastos')}
                     <table>
                         <thead>
                             <tr>
@@ -1937,62 +2938,231 @@
                                 <th>Pagador</th>
                                 <th>Monto</th>
                                 <th>Detalle</th>
-                                <th></th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${ordenarPorFecha(estado.gastosGenerales).map(g => `
+                            ${ordenarPorFecha(filtrarRegistros(activos(estado.gastosGenerales), 'gastos')).map(g => `
                                 <tr>
-                                    <td>${formatearFecha(g.fecha)}</td>
+                                    <td>${formatearFecha(g.fecha)}${g.cargadoPor ? '<br><span style="font-size:10px;color:#999;">por ' + escHtml(g.cargadoPor) + '</span>' : ''}</td>
                                     <td><strong>${escHtml(g.concepto)}</strong></td>
                                     <td><span style="color: ${g.pagador === 'Emma' ? '#ba68c8' : '#64b5f6'}; font-weight: bold;">${escHtml(g.pagador)}</span></td>
                                     <td>$${formatearNumero(g.monto)}</td>
                                     <td style="font-size: 12px; color: #666;">${escHtml(g.detalle) || '-'}</td>
-                                    <td><button class="btn-danger btn-eliminar" data-tipo="gasto" data-id="${g.id}">🗑️</button></td>
+                                    <td style="white-space:nowrap;">
+                                        <button class="btn-secundario btn-editar" data-tipo="gasto" data-id="${g.id}" title="Editar">✏️</button>
+                                        <button class="btn-danger btn-eliminar" data-tipo="gasto" data-id="${g.id}" title="Eliminar">🗑️</button>
+                                    </td>
                                 </tr>
-                            `).join('') || '<tr><td colspan="6" style="text-align:center;">No hay gastos registrados</td></tr>'}
+                            `).join('') || '<tr><td colspan="6" style="text-align:center;">No hay gastos que coincidan</td></tr>'}
                         </tbody>
+                    </table>
+                `;
+            } else if (tabActual === 'movimientos') {
+                const todos = obtenerMovimientosUnificados();
+                const filtrados = filtrarMovimientos(todos).sort((a, b) => {
+                    const fa = a.fecha ? new Date(a.fecha + 'T00:00:00').getTime() : 0;
+                    const fb = b.fecha ? new Date(b.fecha + 'T00:00:00').getTime() : 0;
+                    if (fb !== fa) return fb - fa;
+                    return (b.creadoEn || 0) - (a.creadoEn || 0);
+                });
+
+                // Totales del listado filtrado
+                const totalEmma = filtrados.filter(m => m.pagador === 'Emma').reduce((s, m) => s + (parseFloat(m.monto) || 0), 0);
+                const totalPablo = filtrados.filter(m => m.pagador === 'Pablo').reduce((s, m) => s + (parseFloat(m.monto) || 0), 0);
+                const totalGeneral = totalEmma + totalPablo;
+
+                const f = filtros.movimientos;
+                contenedor.innerHTML = `
+                    <h2>📋 Movimientos — vista unificada</h2>
+                    <p style="color:#666;font-size:14px;margin-bottom:20px;">
+                        Acá ves <b>todos los movimientos juntos</b> en orden cronológico: pagos a tractoristas + gastos generales + pagos entre Emma y Pablo.
+                        Sirve para ver "cuánto puso cada uno hasta el día X" sin saltar entre pestañas.
+                    </p>
+
+                    <!-- Cards de totales (filtrados) -->
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px;margin-bottom:20px;">
+                        <div class="card" style="background:linear-gradient(135deg,#ce93d8 0%,#ba68c8 100%);color:white;text-align:center;">
+                            <div style="font-size:14px;opacity:0.9;">Total puso Emma</div>
+                            <div style="font-size:30px;font-weight:bold;margin:8px 0;">$${formatearNumero(totalEmma)}</div>
+                            <div style="font-size:12px;opacity:0.85;">${filtrados.filter(m=>m.pagador==='Emma').length} movimientos</div>
+                        </div>
+                        <div class="card" style="background:linear-gradient(135deg,#90caf9 0%,#64b5f6 100%);color:white;text-align:center;">
+                            <div style="font-size:14px;opacity:0.9;">Total puso Pablo</div>
+                            <div style="font-size:30px;font-weight:bold;margin:8px 0;">$${formatearNumero(totalPablo)}</div>
+                            <div style="font-size:12px;opacity:0.85;">${filtrados.filter(m=>m.pagador==='Pablo').length} movimientos</div>
+                        </div>
+                        <div class="card" style="background:linear-gradient(135deg,#a5d6a7 0%,#81c784 100%);color:white;text-align:center;">
+                            <div style="font-size:14px;opacity:0.9;">Total general</div>
+                            <div style="font-size:30px;font-weight:bold;margin:8px 0;">$${formatearNumero(totalGeneral)}</div>
+                            <div style="font-size:12px;opacity:0.85;">${filtrados.length} movimientos</div>
+                        </div>
+                    </div>
+
+                    <!-- Filtros -->
+                    <div class="filtros-bar" style="background:#f5f5f5;padding:12px;border-radius:8px;margin-bottom:15px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                        <input type="text" placeholder="🔍 Buscar..." value="${escHtml(f.texto || '')}" oninput="actualizarFiltro('movimientos','texto',this.value)" style="flex:1;min-width:160px;">
+                        <input type="date" title="Desde" value="${escHtml(f.desde || '')}" onchange="actualizarFiltro('movimientos','desde',this.value)" style="min-width:140px;">
+                        <input type="date" title="Hasta" value="${escHtml(f.hasta || '')}" onchange="actualizarFiltro('movimientos','hasta',this.value)" style="min-width:140px;">
+                        <select onchange="actualizarFiltro('movimientos','pagador',this.value)" style="min-width:140px;">
+                            <option value="">Emma y Pablo</option>
+                            <option value="Emma" ${f.pagador==='Emma'?'selected':''}>👩‍🌾 Solo Emma</option>
+                            <option value="Pablo" ${f.pagador==='Pablo'?'selected':''}>👨‍🌾 Solo Pablo</option>
+                        </select>
+                        <select onchange="actualizarFiltro('movimientos','tipo',this.value)" style="min-width:170px;">
+                            <option value="">Todos los tipos</option>
+                            <option value="pago-tractorista" ${f.tipo==='pago-tractorista'?'selected':''}>💳 Pagos Tractorista</option>
+                            <option value="gasto" ${f.tipo==='gasto'?'selected':''}>💰 Gastos</option>
+                            <option value="balance" ${f.tipo==='balance'?'selected':''}>⚖️ Pagos Emma-Pablo</option>
+                        </select>
+                        <button onclick="limpiarFiltros('movimientos')" style="background:#9e9e9e;color:white;padding:8px 12px;font-size:13px;">Limpiar</button>
+                    </div>
+
+                    <!-- Tabla unificada -->
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Tipo</th>
+                                <th>Pagador</th>
+                                <th>Monto</th>
+                                <th>Detalle</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filtrados.length > 0 ? filtrados.map(m => {
+                                const colorPagador = m.pagador === 'Emma' ? '#ba68c8' : '#64b5f6';
+                                const bgTipo = m.tipo === 'pago-tractorista' ? '#e3f2fd' : (m.tipo === 'gasto' ? '#fff3e0' : '#f3e5f5');
+                                return `
+                                    <tr>
+                                        <td>${formatearFecha(m.fecha)}${m.cargadoPor ? '<br><span style="font-size:10px;color:#999;">por ' + escHtml(m.cargadoPor) + '</span>' : ''}</td>
+                                        <td><span style="background:${bgTipo};padding:3px 8px;border-radius:4px;font-size:12px;font-weight:600;">${escHtml(m.tipoLabel)}</span></td>
+                                        <td><span style="color:${colorPagador};font-weight:bold;">${escHtml(m.pagador || '?')}</span></td>
+                                        <td><strong>$${formatearNumero(m.monto)}</strong></td>
+                                        <td style="font-size:13px;color:#444;">${escHtml(m.detalle)}</td>
+                                    </tr>
+                                `;
+                            }).join('') : '<tr><td colspan="5" style="text-align:center;color:#999;padding:30px;">No hay movimientos que coincidan con los filtros</td></tr>'}
+                        </tbody>
+                        ${filtrados.length > 0 ? `
+                        <tfoot>
+                            <tr style="background:#f5f5f5;font-weight:bold;">
+                                <td colspan="3" style="text-align:right;">TOTAL filtrado:</td>
+                                <td>$${formatearNumero(totalGeneral)}</td>
+                                <td>(Emma: $${formatearNumero(totalEmma)} | Pablo: $${formatearNumero(totalPablo)})</td>
+                            </tr>
+                        </tfoot>` : ''}
                     </table>
                 `;
             } else if (tabActual === 'balance') {
                 const balanceCompleto = calcularBalanceCompleto();
+                const bc = balanceCompleto;
+                const sumaTotal = bc.emma.totalGastado + bc.pablo.totalGastado;
+                const justoCadaUno = sumaTotal / 2;
+                const equilibrado = Math.abs(bc.diferencia) < 0.01; // Considerar 0 si la diferencia es < 1 centavo
+                const colorEquilibrio = equilibrado ? '#2e7d32' : '#e65100';
+                const bgEquilibrio = equilibrado ? '#e8f5e9' : '#fff3e0';
+                const bordeEquilibrio = equilibrado ? '#4caf50' : '#ff9800';
+                const quienDebe = bc.diferencia > 0 ? 'Pablo' : (bc.diferencia < 0 ? 'Emma' : null);
+                const aQuien = quienDebe === 'Pablo' ? 'Emma' : 'Pablo';
+
                 contenedor.innerHTML = `
-                    <h2>Balance Emma-Pablo</h2>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
-                        <div class="card" style="background: linear-gradient(135deg, #ce93d8 0%, #ba68c8 100%); color: white;">
-                            <h3>👨‍🌾 EMMA</h3>
-                            <div style="margin: 20px 0;">
-                                <div style="margin-bottom: 10px;">Pagó a tractoristas: <strong>$${formatearNumero(balanceCompleto.emma.pagosTractoristas)}</strong></div>
-                                <div style="margin-bottom: 10px;">Gastos generales: <strong>$${formatearNumero(balanceCompleto.emma.gastos)}</strong></div>
-                                <div style="margin-bottom: 10px;">Debe pagar: <strong>$${formatearNumero(balanceCompleto.emma.debePagar)}</strong></div>
-                                <hr style="margin: 15px 0; border-color: rgba(255,255,255,0.3);">
-                                <div style="font-size: 20px;"><strong>Total gastado: $${formatearNumero(balanceCompleto.emma.totalGastado)}</strong></div>
+                    <h2>⚖️ Balance Emma-Pablo</h2>
+                    <p style="color:#666;margin-bottom:25px;">Vista completa del estado de cuentas entre los dos socios. Todo se reparte 50/50.</p>
+
+                    <!-- ===== RESULTADO DESTACADO ===== -->
+                    <div class="card" style="background:${bgEquilibrio};border:3px solid ${bordeEquilibrio};text-align:center;padding:30px;margin-bottom:30px;">
+                        <div style="font-size:18px;color:${colorEquilibrio};margin-bottom:10px;font-weight:600;">
+                            ${equilibrado ? '✅ ESTÁN EQUILIBRADOS' : '⚠️ CUENTA PENDIENTE'}
+                        </div>
+                        ${equilibrado ? `
+                            <div style="font-size:22px;color:${colorEquilibrio};margin:10px 0;">
+                                Cada uno puso lo mismo: <strong>$${formatearNumero(justoCadaUno)}</strong>
+                            </div>
+                        ` : `
+                            <div style="font-size:18px;color:#666;margin:10px 0;">
+                                ${quienDebe === 'Pablo' ? '👨‍🌾 Pablo' : '👩‍🌾 Emma'} le tiene que pagar a ${aQuien === 'Pablo' ? '👨‍🌾 Pablo' : '👩‍🌾 Emma'}
+                            </div>
+                            <div style="font-size:48px;color:${colorEquilibrio};font-weight:bold;margin:15px 0;">
+                                $${formatearNumero(bc.montoParaEquilibrar)}
+                            </div>
+                            <button class="btn-success" onclick="equilibrarAhora()" style="font-size:16px;padding:14px 28px;">
+                                ⚡ Equilibrar ahora — registrar este pago
+                            </button>
+                            <div style="font-size:12px;color:#666;margin-top:10px;">
+                                Te precarga el formulario "Pago Emma-Pablo" con $${formatearNumero(bc.montoParaEquilibrar)} de ${quienDebe} a ${aQuien}.
+                            </div>
+                        `}
+                    </div>
+
+                    <!-- ===== CARDS DE CADA SOCIO ===== -->
+                    <h3 style="color:#2e7d32;margin-bottom:15px;">💼 Lo que puso cada uno</h3>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:30px;">
+                        <div class="card" style="background:linear-gradient(135deg,#ce93d8 0%,#ba68c8 100%);color:white;">
+                            <h3 style="margin-bottom:15px;">👩‍🌾 EMMA</h3>
+                            <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px;">
+                                <span>💳 Pagos a tractoristas:</span>
+                                <strong>$${formatearNumero(bc.emma.pagosTractoristas)}</strong>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px;">
+                                <span>💰 Gastos generales:</span>
+                                <strong>$${formatearNumero(bc.emma.gastos)}</strong>
+                            </div>
+                            <hr style="margin:12px 0;border-color:rgba(255,255,255,0.3);">
+                            <div style="display:flex;justify-content:space-between;font-size:18px;">
+                                <span><strong>Total que puso Emma:</strong></span>
+                                <strong>$${formatearNumero(bc.emma.totalGastado)}</strong>
                             </div>
                         </div>
-                        
-                        <div class="card" style="background: linear-gradient(135deg, #90caf9 0%, #64b5f6 100%); color: white;">
-                            <h3>👨‍🌾 PABLO</h3>
-                            <div style="margin: 20px 0;">
-                                <div style="margin-bottom: 10px;">Pagó a tractoristas: <strong>$${formatearNumero(balanceCompleto.pablo.pagosTractoristas)}</strong></div>
-                                <div style="margin-bottom: 10px;">Gastos generales: <strong>$${formatearNumero(balanceCompleto.pablo.gastos)}</strong></div>
-                                <div style="margin-bottom: 10px;">Debe pagar: <strong>$${formatearNumero(balanceCompleto.pablo.debePagar)}</strong></div>
-                                <hr style="margin: 15px 0; border-color: rgba(255,255,255,0.3);">
-                                <div style="font-size: 20px;"><strong>Total gastado: $${formatearNumero(balanceCompleto.pablo.totalGastado)}</strong></div>
+
+                        <div class="card" style="background:linear-gradient(135deg,#90caf9 0%,#64b5f6 100%);color:white;">
+                            <h3 style="margin-bottom:15px;">👨‍🌾 PABLO</h3>
+                            <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px;">
+                                <span>💳 Pagos a tractoristas:</span>
+                                <strong>$${formatearNumero(bc.pablo.pagosTractoristas)}</strong>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px;">
+                                <span>💰 Gastos generales:</span>
+                                <strong>$${formatearNumero(bc.pablo.gastos)}</strong>
+                            </div>
+                            <hr style="margin:12px 0;border-color:rgba(255,255,255,0.3);">
+                            <div style="display:flex;justify-content:space-between;font-size:18px;">
+                                <span><strong>Total que puso Pablo:</strong></span>
+                                <strong>$${formatearNumero(bc.pablo.totalGastado)}</strong>
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="card" style="background: ${balanceCompleto.diferencia === 0 ? '#e8f5e9' : '#fff3e0'}; border: 2px solid ${balanceCompleto.diferencia === 0 ? '#4caf50' : '#ff9800'};">
-                        <h3 style="color: ${balanceCompleto.diferencia === 0 ? '#2e7d32' : '#e65100'};">
-                            ⚖️ Estado del Balance
-                        </h3>
-                        <div style="font-size: 24px; margin: 15px 0;">
-                            ${balanceCompleto.diferencia === 0 ? '✅ Están equilibrados' : 
-                              balanceCompleto.diferencia > 0 ? 
-                              `👨‍🌾 Pablo debe pagarle a Emma: <strong>$${formatearNumero(balanceCompleto.montoParaEquilibrar)}</strong>` :
-                              `👨‍🌾 Emma debe pagarle a Pablo: <strong>$${formatearNumero(balanceCompleto.montoParaEquilibrar)}</strong>`
-                            }
+
+                    <!-- ===== CÁLCULO PASO A PASO ===== -->
+                    <h3 style="color:#2e7d32;margin-bottom:15px;">🧮 Cómo se calcula (paso a paso)</h3>
+                    <div class="card" style="background:#f5f5f5;border:2px solid #e0e0e0;">
+                        <div style="display:flex;flex-direction:column;gap:12px;font-size:15px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #ccc;">
+                                <span><strong>1.</strong> Total puesto entre los dos:</span>
+                                <strong>$${formatearNumero(bc.emma.totalGastado)} + $${formatearNumero(bc.pablo.totalGastado)} = $${formatearNumero(sumaTotal)}</strong>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #ccc;">
+                                <span><strong>2.</strong> Le tocaba poner a cada uno (50%):</span>
+                                <strong>$${formatearNumero(sumaTotal)} ÷ 2 = $${formatearNumero(justoCadaUno)}</strong>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #ccc;color:#ba68c8;">
+                                <span><strong>3.</strong> Emma puso ${bc.emma.totalGastado >= justoCadaUno ? 'de más' : 'de menos'}:</span>
+                                <strong>$${formatearNumero(Math.abs(bc.emma.totalGastado - justoCadaUno))}</strong>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #ccc;color:#1976d2;">
+                                <span><strong>4.</strong> Pablo puso ${bc.pablo.totalGastado >= justoCadaUno ? 'de más' : 'de menos'}:</span>
+                                <strong>$${formatearNumero(Math.abs(bc.pablo.totalGastado - justoCadaUno))}</strong>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #ccc;">
+                                <span><strong>5.</strong> Pagos ya hechos entre ustedes:</span>
+                                <strong>${(bc.pagosEmmaAPablo + bc.pagosPabloAEmma) === 0 ? 'Ninguno' : 'Emma→Pablo: $' + formatearNumero(bc.pagosEmmaAPablo) + ' | Pablo→Emma: $' + formatearNumero(bc.pagosPabloAEmma)}</strong>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:white;border-radius:6px;border:2px solid ${bordeEquilibrio};margin-top:5px;">
+                                <span style="font-size:16px;"><strong>6. Resultado final:</strong></span>
+                                <strong style="color:${colorEquilibrio};font-size:18px;">
+                                    ${equilibrado ? '✅ Equilibrados' : (quienDebe + ' debe a ' + aQuien + ': $' + formatearNumero(bc.montoParaEquilibrar))}
+                                </strong>
+                            </div>
                         </div>
                     </div>
                     
@@ -2023,6 +3193,7 @@
                     </div>
                     
                     <h3 style="margin-top: 30px;">Historial de Pagos Emma-Pablo</h3>
+                    ${renderFiltrosUI('balance')}
                     <table>
                         <thead>
                             <tr>
@@ -2031,37 +3202,50 @@
                                 <th>A quien</th>
                                 <th>Monto</th>
                                 <th>Concepto</th>
-                                <th></th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${ordenarPorFecha(estado.pagosEntreEmmaYPablo).map(p => `
+                            ${ordenarPorFecha(filtrarRegistros(activos(estado.pagosEntreEmmaYPablo), 'balance')).map(p => `
                                 <tr>
-                                    <td>${formatearFecha(p.fecha)}</td>
+                                    <td>${formatearFecha(p.fecha)}${p.cargadoPor ? '<br><span style="font-size:10px;color:#999;">por ' + escHtml(p.cargadoPor) + '</span>' : ''}</td>
                                     <td><span style="color: ${p.pagador === 'Emma' ? '#ba68c8' : '#64b5f6'}; font-weight: bold;">${escHtml(p.pagador)}</span></td>
                                     <td><span style="color: ${p.pagador === 'Emma' ? '#64b5f6' : '#ba68c8'}; font-weight: bold;">${p.pagador === 'Emma' ? 'Pablo' : 'Emma'}</span></td>
                                     <td>$${formatearNumero(p.monto)}</td>
                                     <td style="font-size: 12px; color: #666;">${escHtml(p.concepto) || '-'}</td>
-                                    <td><button class="btn-danger btn-eliminar" data-tipo="pago-balance" data-id="${p.id}">🗑️</button></td>
+                                    <td style="white-space:nowrap;">
+                                        <button class="btn-secundario btn-editar" data-tipo="pago-balance" data-id="${p.id}" title="Editar">✏️</button>
+                                        <button class="btn-danger btn-eliminar" data-tipo="pago-balance" data-id="${p.id}" title="Eliminar">🗑️</button>
+                                    </td>
                                 </tr>
-                            `).join('') || '<tr><td colspan="6" style="text-align:center;">No hay pagos registrados</td></tr>'}
+                            `).join('') || '<tr><td colspan="6" style="text-align:center;">No hay pagos que coincidan</td></tr>'}
                         </tbody>
                     </table>
                 `;
             } else if (tabActual === 'dashboard') {
                 const resumen = calcularResumenGeneral();
                 const totales = calcularTotales();
+                const dash = calcularDatosDashboard();
+                const trabajosActivos = activos(estado.trabajos);
+                const fmtMoney = (v) => '$' + formatearNumero(v);
+
+                // Comparativa este mes vs mes anterior
+                const mesActual = dash.meses[dash.meses.length - 1] || { value: 0, monto: 0, hectareas: 0 };
+                const mesAnterior = dash.meses[dash.meses.length - 2] || { value: 0, monto: 0, hectareas: 0 };
+                const variacionTrabajos = mesAnterior.value > 0 ? Math.round(((mesActual.value - mesAnterior.value) / mesAnterior.value) * 100) : (mesActual.value > 0 ? 100 : 0);
+                const variacionMonto = mesAnterior.monto > 0 ? Math.round(((mesActual.monto - mesAnterior.monto) / mesAnterior.monto) * 100) : (mesActual.monto > 0 ? 100 : 0);
+
                 contenedor.innerHTML = `
                     <h2>Dashboard General</h2>
-                    
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px;">
                         <div class="card" style="background: linear-gradient(135deg, #81c784 0%, #66bb6a 100%); color: white; text-align: center;">
                             <div style="font-size: 14px; opacity: 0.9;">Tractoristas</div>
                             <div style="font-size: 42px; font-weight: bold; margin: 10px 0;">${estado.tractoristas.length}</div>
                         </div>
                         <div class="card" style="background: linear-gradient(135deg, #64b5f6 0%, #42a5f5 100%); color: white; text-align: center;">
                             <div style="font-size: 14px; opacity: 0.9;">Trabajos</div>
-                            <div style="font-size: 42px; font-weight: bold; margin: 10px 0;">${estado.trabajos.length}</div>
+                            <div style="font-size: 42px; font-weight: bold; margin: 10px 0;">${trabajosActivos.length}</div>
                         </div>
                         <div class="card" style="background: linear-gradient(135deg, #ba68c8 0%, #ab47bc 100%); color: white; text-align: center;">
                             <div style="font-size: 14px; opacity: 0.9;">Hectáreas</div>
@@ -2074,6 +3258,48 @@
                         <div class="card" style="background: linear-gradient(135deg, #ff8a65 0%, #ff7043 100%); color: white; text-align: center;">
                             <div style="font-size: 14px; opacity: 0.9;">Lotes</div>
                             <div style="font-size: 42px; font-weight: bold; margin: 10px 0;">${estado.lotes.length}</div>
+                        </div>
+                    </div>
+
+                    <!-- Comparativa este mes vs anterior -->
+                    <div class="card" style="background:#f1f8e9;border:2px solid #81c784;margin-bottom:20px;">
+                        <h3 style="color:#2e7d32;margin-bottom:15px;">📊 Este mes vs el anterior</h3>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">
+                            <div style="text-align:center;padding:10px;">
+                                <div style="font-size:13px;color:#666;">Trabajos del mes</div>
+                                <div style="font-size:28px;font-weight:bold;color:#1b5e20;">${mesActual.value}</div>
+                                <div style="font-size:13px;color:${variacionTrabajos >= 0 ? '#43a047' : '#d32f2f'};">${variacionTrabajos >= 0 ? '▲' : '▼'} ${Math.abs(variacionTrabajos)}% vs mes pasado (${mesAnterior.value})</div>
+                            </div>
+                            <div style="text-align:center;padding:10px;">
+                                <div style="font-size:13px;color:#666;">Monto trabajado</div>
+                                <div style="font-size:28px;font-weight:bold;color:#1b5e20;">${fmtMoney(mesActual.monto)}</div>
+                                <div style="font-size:13px;color:${variacionMonto >= 0 ? '#43a047' : '#d32f2f'};">${variacionMonto >= 0 ? '▲' : '▼'} ${Math.abs(variacionMonto)}% vs ${fmtMoney(mesAnterior.monto)}</div>
+                            </div>
+                            <div style="text-align:center;padding:10px;">
+                                <div style="font-size:13px;color:#666;">Hectáreas del mes</div>
+                                <div style="font-size:28px;font-weight:bold;color:#1b5e20;">${mesActual.hectareas.toFixed(2)}</div>
+                                <div style="font-size:13px;color:#666;">vs ${mesAnterior.hectareas.toFixed(2)} ha mes pasado</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gráfico de trabajos por mes -->
+                    <div class="card" style="margin-bottom:20px;">
+                        <h3>📈 Monto trabajado (últimos 6 meses)</h3>
+                        ${barChartSVG(dash.meses.map(m => ({ label: m.label, value: m.monto, color: '#43a047' })), { formatValue: fmtMoney, formatAxisY: fmtMoney, height: 300 })}
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+                        <div class="card">
+                            <h3>🏆 Top tractoristas (acumulado)</h3>
+                            ${dash.topTractoristas.length > 0 ? barChartSVG(dash.topTractoristas, { formatValue: fmtMoney, formatAxisY: fmtMoney, color: '#1976d2', height: 260 }) : '<div style="color:#999;padding:20px;text-align:center;">Sin datos</div>'}
+                        </div>
+                        <div class="card">
+                            <h3>💰 Gastos generales por pagador</h3>
+                            ${(dash.gastosEmma + dash.gastosPablo) > 0 ? pieChartSVG([
+                                { label: 'Emma', value: dash.gastosEmma, color: '#ba68c8' },
+                                { label: 'Pablo', value: dash.gastosPablo, color: '#64b5f6' }
+                            ], { formatValue: fmtMoney, size: 200 }) : '<div style="color:#999;padding:20px;text-align:center;">Sin gastos cargados</div>'}
                         </div>
                     </div>
                     
@@ -2287,7 +3513,9 @@
                 actividad: actividad,
                 cantidad: actividad === 'Otra actividad' ? 1 : cantidad,
                 precio: precio,
-                notas: document.getElementById('t-notas').value.trim()
+                notas: document.getElementById('t-notas').value.trim(),
+                cargadoPor: obtenerUsuarioActivo(),
+                creadoEn: Date.now()
             };
 
             estado.trabajos.push(trabajo);
@@ -2299,12 +3527,16 @@
         }
 
         async function eliminarTrabajo(id) {
-            const ok = await confirmarModal('¿Eliminar este trabajo?', { titulo: 'Confirmar eliminación', confirmar: 'Sí, eliminar', peligroso: true });
+            const ok = await confirmarModal('¿Eliminar este trabajo?\n\nVa a la papelera y se puede recuperar durante 7 días.', { titulo: 'Confirmar eliminación', confirmar: 'Sí, eliminar', peligroso: true });
             if (ok) {
-                estado.trabajos = estado.trabajos.filter(t => t.id !== id);
+                const t = estado.trabajos.find(x => x.id === id);
+                if (t) {
+                    t.eliminado = Date.now();
+                    t.eliminadoPor = obtenerUsuarioActivo();
+                }
                 await guardar();
                 renderizar();
-                showToast('Trabajo eliminado', 'info', 2000);
+                showToast('Trabajo enviado a papelera (recuperable 7 días)', 'info', 3500);
             }
         }
 
@@ -2442,7 +3674,9 @@
                 tractorista,
                 pagador,
                 monto,
-                concepto: document.getElementById('p-concepto').value.trim()
+                concepto: document.getElementById('p-concepto').value.trim(),
+                cargadoPor: obtenerUsuarioActivo(),
+                creadoEn: Date.now()
             };
 
             estado.pagosTractoristas.push(pago);
@@ -2454,12 +3688,13 @@
         }
 
         async function eliminarPago(id) {
-            const ok = await confirmarModal('¿Eliminar este pago?', { titulo: 'Confirmar eliminación', confirmar: 'Sí, eliminar', peligroso: true });
+            const ok = await confirmarModal('¿Eliminar este pago?\n\nVa a la papelera y se puede recuperar durante 7 días.', { titulo: 'Confirmar eliminación', confirmar: 'Sí, eliminar', peligroso: true });
             if (ok) {
-                estado.pagosTractoristas = estado.pagosTractoristas.filter(p => p.id !== id);
+                const p = estado.pagosTractoristas.find(x => x.id === id);
+                if (p) { p.eliminado = Date.now(); p.eliminadoPor = obtenerUsuarioActivo(); }
                 await guardar();
                 renderizar();
-                showToast('Pago eliminado', 'info', 2000);
+                showToast('Pago enviado a papelera', 'info', 2500);
             }
         }
 
@@ -2474,9 +3709,9 @@
             estado.actividades.forEach(act => {
                 porActividad[act.nombre] = { cantidad: 0, monto: 0 };
             });
-            
-            // Calcular por trabajo
-            estado.trabajos.forEach(t => {
+
+            // Calcular por trabajo (solo activos, no eliminados)
+            activos(estado.trabajos).forEach(t => {
                 const cantidad = isNaN(t.cantidad) ? 0 : t.cantidad;
                 const precio = isNaN(t.precio) ? 0 : t.precio;
                 const monto = t.actividad === 'Otra actividad' ? precio : (cantidad * precio);
@@ -2532,7 +3767,9 @@
                 concepto,
                 pagador,
                 monto,
-                detalle: document.getElementById('g-detalle').value.trim()
+                detalle: document.getElementById('g-detalle').value.trim(),
+                cargadoPor: obtenerUsuarioActivo(),
+                creadoEn: Date.now()
             };
 
             estado.gastosGenerales.push(gasto);
@@ -2545,12 +3782,13 @@
         }
 
         async function eliminarGasto(id) {
-            const ok = await confirmarModal('¿Eliminar este gasto?', { titulo: 'Confirmar eliminación', confirmar: 'Sí, eliminar', peligroso: true });
+            const ok = await confirmarModal('¿Eliminar este gasto?\n\nVa a la papelera y se puede recuperar durante 7 días.', { titulo: 'Confirmar eliminación', confirmar: 'Sí, eliminar', peligroso: true });
             if (ok) {
-                estado.gastosGenerales = estado.gastosGenerales.filter(g => g.id !== id);
+                const g = estado.gastosGenerales.find(x => x.id === id);
+                if (g) { g.eliminado = Date.now(); g.eliminadoPor = obtenerUsuarioActivo(); }
                 await guardar();
                 renderizar();
-                showToast('Gasto eliminado', 'info', 2000);
+                showToast('Gasto enviado a papelera', 'info', 2500);
             }
         }
 
@@ -2558,13 +3796,15 @@
         function calcularBalanceCompleto() {
             const totales = calcularTotales();
             
-            // Calcular gastos generales
-            const gastosEmma = estado.gastosGenerales.filter(g => g.pagador === 'Emma').reduce((s, g) => s + (isNaN(g.monto) ? 0 : g.monto), 0);
-            const gastosPablo = estado.gastosGenerales.filter(g => g.pagador === 'Pablo').reduce((s, g) => s + (isNaN(g.monto) ? 0 : g.monto), 0);
-            
-            // Calcular pagos entre Emma y Pablo
-            const pagosEmmaAPablo = estado.pagosEntreEmmaYPablo.filter(p => p.pagador === 'Emma').reduce((s, p) => s + (isNaN(p.monto) ? 0 : p.monto), 0);
-            const pagosPabloAEmma = estado.pagosEntreEmmaYPablo.filter(p => p.pagador === 'Pablo').reduce((s, p) => s + (isNaN(p.monto) ? 0 : p.monto), 0);
+            // Calcular gastos generales (solo activos)
+            const gastosActivos = activos(estado.gastosGenerales);
+            const gastosEmma = gastosActivos.filter(g => g.pagador === 'Emma').reduce((s, g) => s + (isNaN(g.monto) ? 0 : g.monto), 0);
+            const gastosPablo = gastosActivos.filter(g => g.pagador === 'Pablo').reduce((s, g) => s + (isNaN(g.monto) ? 0 : g.monto), 0);
+
+            // Calcular pagos entre Emma y Pablo (solo activos)
+            const balanceActivos = activos(estado.pagosEntreEmmaYPablo);
+            const pagosEmmaAPablo = balanceActivos.filter(p => p.pagador === 'Emma').reduce((s, p) => s + (isNaN(p.monto) ? 0 : p.monto), 0);
+            const pagosPabloAEmma = balanceActivos.filter(p => p.pagador === 'Pablo').reduce((s, p) => s + (isNaN(p.monto) ? 0 : p.monto), 0);
             
             // Total que gastó cada uno (sin contar pagos entre ellos)
             const totalGastadoEmma = totales.emmaPagado + gastosEmma;
@@ -2618,7 +3858,9 @@
                 fecha,
                 pagador,
                 monto,
-                concepto: document.getElementById('b-concepto').value.trim()
+                concepto: document.getElementById('b-concepto').value.trim(),
+                cargadoPor: obtenerUsuarioActivo(),
+                creadoEn: Date.now()
             };
 
             estado.pagosEntreEmmaYPablo.push(pago);
@@ -2630,12 +3872,13 @@
         }
 
         async function eliminarPagoBalance(id) {
-            const ok = await confirmarModal('¿Eliminar este pago?', { titulo: 'Confirmar eliminación', confirmar: 'Sí, eliminar', peligroso: true });
+            const ok = await confirmarModal('¿Eliminar este pago?\n\nVa a la papelera y se puede recuperar durante 7 días.', { titulo: 'Confirmar eliminación', confirmar: 'Sí, eliminar', peligroso: true });
             if (ok) {
-                estado.pagosEntreEmmaYPablo = estado.pagosEntreEmmaYPablo.filter(p => p.id !== id);
+                const p = estado.pagosEntreEmmaYPablo.find(x => x.id === id);
+                if (p) { p.eliminado = Date.now(); p.eliminadoPor = obtenerUsuarioActivo(); }
                 await guardar();
                 renderizar();
-                showToast('Pago eliminado', 'info', 2000);
+                showToast('Pago enviado a papelera', 'info', 2500);
             }
         }
 
@@ -2929,6 +4172,7 @@
                 window.URL.revokeObjectURL(url);
                 
                 console.log('✅ Excel exportado con formato completo');
+                marcarExportRealizado();
                 showToast('Excel exportado correctamente', 'success', 2500);
 
             } catch (error) {
@@ -2980,322 +4224,4 @@
                     // Helper: ExcelJS a veces devuelve celdas con texto rico {richText:[...]} u objetos {result:...}
                     const cellToString = (v) => {
                         if (v === null || v === undefined) return '';
-                        if (typeof v === 'string') return v.trim();
-                        if (typeof v === 'number') return String(v);
-                        if (v instanceof Date) return v.toISOString().split('T')[0];
-                        if (typeof v === 'object') {
-                            if (v.text) return String(v.text).trim();
-                            if (v.result !== undefined) return String(v.result).trim();
-                            if (v.richText) return v.richText.map(r => r.text).join('').trim();
-                            if (v.hyperlink) return String(v.hyperlink).trim();
-                        }
-                        return String(v).trim();
-                    };
-                    const cellToNumber = (v) => {
-                        if (v === null || v === undefined || v === '') return 0;
-                        if (typeof v === 'number') return v;
-                        if (typeof v === 'object' && v.result !== undefined) return parseFloat(v.result) || 0;
-                        const s = cellToString(v).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
-                        return parseFloat(s) || 0;
-                    };
-
-                    let cambios = 0;
-                    let baseId = Date.now();
-
-                    // IMPORTAR TRABAJOS
-                    const wsTrabajos = workbook.getWorksheet('Trabajos');
-                    if (wsTrabajos) {
-                        const nuevosTrabajos = [];
-                        wsTrabajos.eachRow((row, rowNumber) => {
-                            if (rowNumber <= 3) return;
-                            const values = row.values;
-                            if (!values[1]) return;
-                            if (cellToString(values[6]) === 'TOTAL:') return;
-
-                            const trabajo = {
-                                id: baseId++,
-                                fecha: normalizarFecha(values[1]),
-                                tractorista: cellToString(values[2]),
-                                lote: cellToString(values[3]),
-                                actividad: cellToString(values[4]),
-                                cantidad: cellToString(values[5]) === '-' ? 1 : cellToNumber(values[5]),
-                                precio: cellToNumber(values[6]),
-                                notas: cellToString(values[8])
-                            };
-                            if (trabajo.tractorista || trabajo.actividad) {
-                                nuevosTrabajos.push(trabajo);
-                                cambios++;
-                            }
-                        });
-                        estado.trabajos = nuevosTrabajos;
-                    }
-
-                    // IMPORTAR PAGOS
-                    const wsPagos = workbook.getWorksheet('Pagos Tractoristas');
-                    if (wsPagos) {
-                        const nuevosPagos = [];
-                        wsPagos.eachRow((row, rowNumber) => {
-                            if (rowNumber <= 3) return;
-                            const values = row.values;
-                            if (!values[1]) return;
-                            if (cellToString(values[3]) === 'TOTAL:') return;
-
-                            const pago = {
-                                id: baseId++,
-                                fecha: normalizarFecha(values[1]),
-                                tractorista: cellToString(values[2]),
-                                pagador: cellToString(values[3]) || 'Emma',
-                                monto: cellToNumber(values[4]),
-                                concepto: cellToString(values[5])
-                            };
-                            if (pago.tractorista) {
-                                nuevosPagos.push(pago);
-                                cambios++;
-                            }
-                        });
-                        estado.pagosTractoristas = nuevosPagos;
-                    }
-
-                    // IMPORTAR GASTOS
-                    const wsGastos = workbook.getWorksheet('Gastos Generales');
-                    if (wsGastos) {
-                        const nuevosGastos = [];
-                        wsGastos.eachRow((row, rowNumber) => {
-                            if (rowNumber <= 3) return;
-                            const values = row.values;
-                            if (!values[1]) return;
-                            if (cellToString(values[3]) === 'TOTAL:') return;
-
-                            const gasto = {
-                                id: baseId++,
-                                fecha: normalizarFecha(values[1]),
-                                concepto: cellToString(values[2]),
-                                pagador: cellToString(values[3]) || 'Emma',
-                                monto: cellToNumber(values[4]),
-                                detalle: cellToString(values[5])
-                            };
-                            if (gasto.concepto) {
-                                nuevosGastos.push(gasto);
-                                cambios++;
-                            }
-                        });
-                        estado.gastosGenerales = nuevosGastos;
-                    }
-
-                    // IMPORTAR BALANCE EMMA-PABLO
-                    const wsBalance = workbook.getWorksheet('Balance Emma-Pablo');
-                    if (wsBalance) {
-                        const nuevosBalance = [];
-                        wsBalance.eachRow((row, rowNumber) => {
-                            if (rowNumber <= 3) return;
-                            const values = row.values;
-                            if (!values[1]) return;
-                            if (cellToString(values[3]) === 'TOTAL:') return;
-
-                            const balance = {
-                                id: baseId++,
-                                fecha: normalizarFecha(values[1]),
-                                pagador: cellToString(values[2]) || 'Emma',
-                                monto: cellToNumber(values[4]),
-                                concepto: cellToString(values[5])
-                            };
-                            if (balance.pagador) {
-                                nuevosBalance.push(balance);
-                                cambios++;
-                            }
-                        });
-                        estado.pagosEntreEmmaYPablo = nuevosBalance;
-                    }
-
-                    await guardar();
-                    renderizar();
-
-                    showToast('Importación exitosa: ' + cambios + ' registros cargados', 'success', 4000);
-
-                } catch (error) {
-                    console.error('Error al importar:', error);
-                    showToast('Error al importar. Verificá que el archivo sea un Excel exportado desde MundoVerde. Tus datos previos quedaron a salvo en una versión de backup.', 'error', 8000);
-                }
-            };
-
-            input.click();
-        }
-
-        // ===== DETECCIÓN DE CONEXIÓN Y SINCRONIZACIÓN =====
-        let isOnline = navigator.onLine;
-        let firebaseRealmenteConectado = false;
-        
-        function updateConnectionStatus() {
-            const statusEl = document.getElementById('connection-status');
-            const textEl = document.getElementById('connection-text');
-
-            if (!statusEl || !textEl) return;
-
-            const esArchivoLocal = window.location.protocol === 'file:';
-
-            if (!navigator.onLine) {
-                statusEl.className = 'connection-status offline';
-                textEl.textContent = pendingSyncOnReconnect ? 'Sin conexión (cambios pendientes)' : 'Sin conexión';
-                firebaseRealmenteConectado = false;
-                console.log('🔴 Sin conexión a internet');
-            } else if (esArchivoLocal) {
-                statusEl.className = 'connection-status local';
-                textEl.textContent = 'Modo Local (archivo)';
-                firebaseRealmenteConectado = false;
-                console.log('🟡 Modo Local - Archivo abierto desde el disco');
-            } else {
-                if (firebaseIniciado && db) {
-                    statusEl.className = 'connection-status online';
-                    textEl.textContent = pendingSyncOnReconnect ? 'Sincronizando...' : 'En línea';
-                    firebaseRealmenteConectado = true;
-                    console.log('🟢 En línea - Firebase conectado');
-                } else {
-                    statusEl.className = 'connection-status local';
-                    textEl.textContent = 'Modo Local';
-                    firebaseRealmenteConectado = false;
-                    console.log('🟡 Modo Local - Firebase no disponible');
-                }
-            }
-            actualizarBadgePendientes();
-        }
-        
-        // Detectar cambios de conexión y sincronizar la cola pendiente al reconectar
-        window.addEventListener('online', async () => {
-            console.log('🌐 Conexión restaurada');
-            isOnline = true;
-            updateConnectionStatus();
-            showToast('Conexión restaurada — sincronizando datos...', 'info', 3000);
-
-            // Esperar un poco para que la red esté realmente lista, luego sincronizar
-            setTimeout(async () => {
-                if (firebaseIniciado && db) {
-                    try {
-                        await sincronizarConFirebase();
-                        if (pendingSyncOnReconnect) {
-                            pendingSyncOnReconnect = false;
-                            actualizarBadgePendientes();
-                            showToast('Datos sincronizados con la nube', 'success', 2500);
-                        }
-                    } catch (e) {
-                        console.error('Error al sincronizar tras reconectar:', e);
-                    }
-                }
-                updateConnectionStatus();
-            }, 1500);
-        });
-
-        window.addEventListener('offline', () => {
-            console.log('📴 Conexión perdida');
-            isOnline = false;
-            updateConnectionStatus();
-            showToast('Sin conexión: tus cambios se guardan acá y se subirán al reconectar', 'warning', 4000);
-        });
-
-window.onload = async function() {
-            try {
-                await cargar();
-            } catch (e) {
-                console.error('Error en cargar inicial:', e);
-            }
-            // Marcar carga inicial como completa para que el listener de Firebase
-            // pueda procesar cambios remotos sin pisar los datos locales recién cargados.
-            cargaInicialCompleta = true;
-
-            setTimeout(() => { updateConnectionStatus(); }, 500);
-
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.addEventListener('click', function() {
-                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                    this.classList.add('active');
-                    tabActual = this.getAttribute('data-tab');
-                    renderizar();
-                });
-            });
-
-            // ===== DELEGACIÓN DE EVENTOS para botones eliminar (mejor performance) =====
-            // En lugar de re-asociar listeners en cada render con setTimeout,
-            // un único listener captura los clicks en todos los botones .btn-eliminar.
-            const tabContent = document.getElementById('tab-content');
-            if (tabContent) {
-                tabContent.addEventListener('click', function(e) {
-                    const btn = e.target.closest('.btn-eliminar');
-                    if (!btn) return;
-                    const tipo = btn.getAttribute('data-tipo');
-                    const id = btn.getAttribute('data-id');
-                    const nombre = btn.getAttribute('data-nombre');
-                    switch (tipo) {
-                        case 'trabajo': eliminarTrabajo(parseInt(id)); break;
-                        case 'pago': eliminarPago(parseInt(id)); break;
-                        case 'gasto': eliminarGasto(parseInt(id)); break;
-                        case 'pago-balance': eliminarPagoBalance(parseInt(id)); break;
-                        case 'lote': eliminarLote(parseInt(id)); break;
-                        case 'tractorista': eliminarTractorista(nombre); break;
-                    }
-                });
-            }
-
-            renderizar();
-        };
-    </script>
-
-    <script>
-        // Registrar Service Worker para funcionamiento offline.
-        // IMPORTANTE: los Service Workers SOLO funcionan cuando la página se sirve por HTTPS o desde localhost.
-        // Si abrís el archivo como file://, no hay Service Worker, pero igual el sistema funciona offline gracias
-        // al cacheo natural del navegador y a IndexedDB/localStorage. Para un offline 100% real, hospedalo en
-        // GitHub Pages, Netlify, Vercel u otro proveedor HTTPS.
-        if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
-            navigator.serviceWorker.register('data:application/javascript;base64,' + btoa(`
-                const CACHE_NAME = 'mundoverde-v2';
-                // Pre-cachear los assets críticos (Firebase y ExcelJS) en la instalación.
-                // Esto permite que el sistema funcione completamente sin internet después del primer acceso.
-                const PRECACHE_URLS = [
-                    'https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js',
-                    'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js',
-                    'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js'
-                ];
-
-                self.addEventListener('install', (event) => {
-                    console.log('Service Worker: Instalando...');
-                    event.waitUntil(
-                        caches.open(CACHE_NAME)
-                            .then(cache => cache.addAll(PRECACHE_URLS).catch(e => console.warn('Pre-cache parcial:', e)))
-                            .then(() => self.skipWaiting())
-                    );
-                });
-
-                self.addEventListener('activate', (event) => {
-                    console.log('Service Worker: Activando...');
-                    event.waitUntil(
-                        caches.keys().then(names =>
-                            Promise.all(names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n)))
-                        ).then(() => self.clients.claim())
-                    );
-                });
-
-                self.addEventListener('fetch', (event) => {
-                    if (event.request.method !== 'GET') return;
-                    // No interceptar las llamadas a Firestore (necesitan ir en vivo o usar la cache propia de Firebase)
-                    if (event.request.url.includes('firestore.googleapis.com')) return;
-
-                    event.respondWith(
-                        caches.open(CACHE_NAME).then((cache) => {
-                            return cache.match(event.request).then((cachedResponse) => {
-                                const fetchPromise = fetch(event.request).then((networkResponse) => {
-                                    if (networkResponse && networkResponse.status === 200) {
-                                        cache.put(event.request, networkResponse.clone());
-                                    }
-                                    return networkResponse;
-                                }).catch(() => cachedResponse);
-
-                                return cachedResponse || fetchPromise;
-                            });
-                        })
-                    );
-                });
-            `)).then(() => {
-                console.log('✅ Service Worker registrado');
-            }).catch(err => {
-                console.log('⚠️ Service Worker no disponible:', err);
-            });
-        } else if (window.location.
+                        
