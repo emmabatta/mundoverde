@@ -2474,7 +2474,29 @@
 
         function renderizar() {
             const contenedor = document.getElementById('tab-content');
-            
+            try {
+                renderizarInterno(contenedor);
+            } catch (err) {
+                console.error('❌ Error en renderizar():', err);
+                if (contenedor) {
+                    contenedor.innerHTML = '<div style="background:#ffebee;border:2px solid #d32f2f;padding:20px;border-radius:10px;margin:20px 0;">' +
+                        '<h3 style="color:#c62828;margin-bottom:10px;">⚠️ Error al mostrar la pestaña</h3>' +
+                        '<div style="font-family:monospace;font-size:13px;background:white;padding:12px;border-radius:6px;white-space:pre-wrap;color:#333;">' +
+                        escHtml(err.message || String(err)) +
+                        '</div>' +
+                        '<div style="margin-top:12px;font-size:12px;color:#666;">Pestaña: ' + escHtml(tabActual) + ' — Pasale este mensaje a Claude para que lo arregle.</div>' +
+                        '</div>';
+                }
+            }
+            try { actualizarStats(); } catch (e) { console.error('Error actualizarStats:', e); }
+            try { adjuntarHandlersEnter(); } catch (e) { console.error('Error handlers Enter:', e); }
+        }
+
+        function adjuntarHandlersEnter() {
+            // Handlers Enter movidos acá para no abortar el render si fallan
+        }
+
+        function renderizarInterno(contenedor) {
             if (tabActual === 'trabajo') {
                 const sinLotes = estado.lotes.length === 0;
                 const sinTractoristas = estado.tractoristas.length === 0;
@@ -4224,4 +4246,380 @@
                     // Helper: ExcelJS a veces devuelve celdas con texto rico {richText:[...]} u objetos {result:...}
                     const cellToString = (v) => {
                         if (v === null || v === undefined) return '';
-                        
+                        if (typeof v === 'string') return v.trim();
+                        if (typeof v === 'number') return String(v);
+                        if (v instanceof Date) return v.toISOString().split('T')[0];
+                        if (typeof v === 'object') {
+                            if (v.text) return String(v.text).trim();
+                            if (v.result !== undefined) return String(v.result).trim();
+                            if (v.richText) return v.richText.map(r => r.text).join('').trim();
+                            if (v.hyperlink) return String(v.hyperlink).trim();
+                        }
+                        return String(v).trim();
+                    };
+                    const cellToNumber = (v) => {
+                        if (v === null || v === undefined || v === '') return 0;
+                        if (typeof v === 'number') return v;
+                        if (typeof v === 'object' && v.result !== undefined) return parseFloat(v.result) || 0;
+                        const s = cellToString(v).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
+                        return parseFloat(s) || 0;
+                    };
+
+                    let cambios = 0;
+                    let baseId = Date.now();
+
+                    // IMPORTAR TRABAJOS
+                    const wsTrabajos = workbook.getWorksheet('Trabajos');
+                    if (wsTrabajos) {
+                        const nuevosTrabajos = [];
+                        wsTrabajos.eachRow((row, rowNumber) => {
+                            if (rowNumber <= 3) return;
+                            const values = row.values;
+                            if (!values[1]) return;
+                            if (cellToString(values[6]) === 'TOTAL:') return;
+
+                            const trabajo = {
+                                id: baseId++,
+                                fecha: normalizarFecha(values[1]),
+                                tractorista: cellToString(values[2]),
+                                lote: cellToString(values[3]),
+                                actividad: cellToString(values[4]),
+                                cantidad: cellToString(values[5]) === '-' ? 1 : cellToNumber(values[5]),
+                                precio: cellToNumber(values[6]),
+                                notas: cellToString(values[8])
+                            };
+                            if (trabajo.tractorista || trabajo.actividad) {
+                                nuevosTrabajos.push(trabajo);
+                                cambios++;
+                            }
+                        });
+                        estado.trabajos = nuevosTrabajos;
+                    }
+
+                    // IMPORTAR PAGOS
+                    const wsPagos = workbook.getWorksheet('Pagos Tractoristas');
+                    if (wsPagos) {
+                        const nuevosPagos = [];
+                        wsPagos.eachRow((row, rowNumber) => {
+                            if (rowNumber <= 3) return;
+                            const values = row.values;
+                            if (!values[1]) return;
+                            if (cellToString(values[3]) === 'TOTAL:') return;
+
+                            const pago = {
+                                id: baseId++,
+                                fecha: normalizarFecha(values[1]),
+                                tractorista: cellToString(values[2]),
+                                pagador: cellToString(values[3]) || 'Emma',
+                                monto: cellToNumber(values[4]),
+                                concepto: cellToString(values[5])
+                            };
+                            if (pago.tractorista) {
+                                nuevosPagos.push(pago);
+                                cambios++;
+                            }
+                        });
+                        estado.pagosTractoristas = nuevosPagos;
+                    }
+
+                    // IMPORTAR GASTOS
+                    const wsGastos = workbook.getWorksheet('Gastos Generales');
+                    if (wsGastos) {
+                        const nuevosGastos = [];
+                        wsGastos.eachRow((row, rowNumber) => {
+                            if (rowNumber <= 3) return;
+                            const values = row.values;
+                            if (!values[1]) return;
+                            if (cellToString(values[3]) === 'TOTAL:') return;
+
+                            const gasto = {
+                                id: baseId++,
+                                fecha: normalizarFecha(values[1]),
+                                concepto: cellToString(values[2]),
+                                pagador: cellToString(values[3]) || 'Emma',
+                                monto: cellToNumber(values[4]),
+                                detalle: cellToString(values[5])
+                            };
+                            if (gasto.concepto) {
+                                nuevosGastos.push(gasto);
+                                cambios++;
+                            }
+                        });
+                        estado.gastosGenerales = nuevosGastos;
+                    }
+
+                    // IMPORTAR BALANCE EMMA-PABLO
+                    const wsBalance = workbook.getWorksheet('Balance Emma-Pablo');
+                    if (wsBalance) {
+                        const nuevosBalance = [];
+                        wsBalance.eachRow((row, rowNumber) => {
+                            if (rowNumber <= 3) return;
+                            const values = row.values;
+                            if (!values[1]) return;
+                            if (cellToString(values[3]) === 'TOTAL:') return;
+
+                            const balance = {
+                                id: baseId++,
+                                fecha: normalizarFecha(values[1]),
+                                pagador: cellToString(values[2]) || 'Emma',
+                                monto: cellToNumber(values[4]),
+                                concepto: cellToString(values[5])
+                            };
+                            if (balance.pagador) {
+                                nuevosBalance.push(balance);
+                                cambios++;
+                            }
+                        });
+                        estado.pagosEntreEmmaYPablo = nuevosBalance;
+                    }
+
+                    await guardar();
+                    renderizar();
+
+                    showToast('Importación exitosa: ' + cambios + ' registros cargados', 'success', 4000);
+
+                } catch (error) {
+                    console.error('Error al importar:', error);
+                    showToast('Error al importar. Verificá que el archivo sea un Excel exportado desde MundoVerde. Tus datos previos quedaron a salvo en una versión de backup.', 'error', 8000);
+                }
+            };
+
+            input.click();
+        }
+
+        // ===== DETECCIÓN DE CONEXIÓN Y SINCRONIZACIÓN =====
+        let isOnline = navigator.onLine;
+        let firebaseRealmenteConectado = false;
+        
+        function updateConnectionStatus() {
+            const statusEl = document.getElementById('connection-status');
+            const textEl = document.getElementById('connection-text');
+
+            if (!statusEl || !textEl) return;
+
+            const esArchivoLocal = window.location.protocol === 'file:';
+
+            if (!navigator.onLine) {
+                statusEl.className = 'connection-status offline';
+                textEl.textContent = pendingSyncOnReconnect ? 'Sin conexión (cambios pendientes)' : 'Sin conexión';
+                firebaseRealmenteConectado = false;
+                console.log('🔴 Sin conexión a internet');
+            } else if (esArchivoLocal) {
+                statusEl.className = 'connection-status local';
+                textEl.textContent = 'Modo Local (archivo)';
+                firebaseRealmenteConectado = false;
+                console.log('🟡 Modo Local - Archivo abierto desde el disco');
+            } else {
+                if (firebaseIniciado && db) {
+                    statusEl.className = 'connection-status online';
+                    textEl.textContent = pendingSyncOnReconnect ? 'Sincronizando...' : 'En línea';
+                    firebaseRealmenteConectado = true;
+                    console.log('🟢 En línea - Firebase conectado');
+                } else {
+                    statusEl.className = 'connection-status local';
+                    textEl.textContent = 'Modo Local';
+                    firebaseRealmenteConectado = false;
+                    console.log('🟡 Modo Local - Firebase no disponible');
+                }
+            }
+            actualizarBadgePendientes();
+        }
+        
+        // Detectar cambios de conexión y sincronizar la cola pendiente al reconectar
+        window.addEventListener('online', async () => {
+            console.log('🌐 Conexión restaurada');
+            isOnline = true;
+            updateConnectionStatus();
+            showToast('Conexión restaurada — sincronizando datos...', 'info', 3000);
+
+            // Esperar un poco para que la red esté realmente lista, luego sincronizar
+            setTimeout(async () => {
+                if (firebaseIniciado && db) {
+                    try {
+                        await sincronizarConFirebase();
+                        if (pendingSyncOnReconnect) {
+                            pendingSyncOnReconnect = false;
+                            actualizarBadgePendientes();
+                            showToast('Datos sincronizados con la nube', 'success', 2500);
+                        }
+                    } catch (e) {
+                        console.error('Error al sincronizar tras reconectar:', e);
+                    }
+                }
+                updateConnectionStatus();
+            }, 1500);
+        });
+
+        window.addEventListener('offline', () => {
+            console.log('📴 Conexión perdida');
+            isOnline = false;
+            updateConnectionStatus();
+            showToast('Sin conexión: tus cambios se guardan acá y se subirán al reconectar', 'warning', 4000);
+        });
+
+window.onload = async function() {
+            // Mostrar pantalla de PIN si está configurado, o invitar a configurarlo si nunca se hizo
+            if (pinExiste()) {
+                mostrarPantallaPin('enter');
+            }
+
+            // Reiniciar timer de inactividad ante actividad del usuario
+            ['click','touchstart','keydown'].forEach(evt => {
+                document.addEventListener(evt, () => {
+                    const overlay = document.getElementById('pin-overlay');
+                    if (overlay && overlay.style.display === 'none') reiniciarTimerInactividad();
+                }, { passive: true });
+            });
+
+            // Inicializar selector de usuario activo
+            inicializarSelectorUsuario();
+
+            // Cargar datos con timeout de 8 segundos para que si algo cuelga,
+            // la app igual arranque y renderice (en el peor caso, vacía).
+            try {
+                const cargaConTimeout = Promise.race([
+                    cargar(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout al cargar (>8s)')), 8000))
+                ]);
+                await cargaConTimeout;
+            } catch (e) {
+                console.error('⚠️ Error/timeout en cargar inicial:', e && e.message ? e.message : e);
+                // No bloquear: seguimos para que la app al menos sea usable
+            }
+            // Marcar carga inicial como completa para que el listener de Firebase
+            // pueda procesar cambios remotos sin pisar los datos locales recién cargados.
+            cargaInicialCompleta = true;
+
+            // Auto-purgar registros de la papelera con más de 7 días eliminados
+            try {
+                const purgados = purgarPapeleraAntigua();
+                if (purgados > 0) {
+                    console.log('🧹 Auto-purga de papelera: ' + purgados + ' registros eliminados definitivamente');
+                    await guardar();
+                }
+            } catch (e) { console.warn('Error en purga de papelera:', e); }
+
+            // Verificar si hace mucho que no exporta a Excel (recordatorio cada 30 días)
+            setTimeout(() => verificarRecordatorioExport(), 4000);
+
+            setTimeout(() => { updateConnectionStatus(); }, 500);
+
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    tabActual = this.getAttribute('data-tab');
+                    renderizar();
+                });
+            });
+
+            // ===== DELEGACIÓN DE EVENTOS para botones eliminar/editar/restaurar =====
+            const tabContent = document.getElementById('tab-content');
+            if (tabContent) {
+                tabContent.addEventListener('click', function(e) {
+                    // Eliminar
+                    const btnDel = e.target.closest('.btn-eliminar');
+                    if (btnDel) {
+                        const tipo = btnDel.getAttribute('data-tipo');
+                        const id = btnDel.getAttribute('data-id');
+                        const nombre = btnDel.getAttribute('data-nombre');
+                        switch (tipo) {
+                            case 'trabajo': eliminarTrabajo(parseInt(id)); break;
+                            case 'pago': eliminarPago(parseInt(id)); break;
+                            case 'gasto': eliminarGasto(parseInt(id)); break;
+                            case 'pago-balance': eliminarPagoBalance(parseInt(id)); break;
+                            case 'lote': eliminarLote(parseInt(id)); break;
+                            case 'tractorista': eliminarTractorista(nombre); break;
+                        }
+                        return;
+                    }
+                    // Editar
+                    const btnEdit = e.target.closest('.btn-editar');
+                    if (btnEdit) {
+                        const tipo = btnEdit.getAttribute('data-tipo');
+                        const id = parseInt(btnEdit.getAttribute('data-id'));
+                        switch (tipo) {
+                            case 'trabajo': editarTrabajo(id); break;
+                            case 'pago': editarPago(id); break;
+                            case 'gasto': editarGasto(id); break;
+                            case 'pago-balance': editarPagoBalance(id); break;
+                            case 'lote': editarLote(id); break;
+                        }
+                        return;
+                    }
+                    // Restaurar (papelera)
+                    const btnRestore = e.target.closest('.btn-restaurar');
+                    if (btnRestore) {
+                        const tipo = btnRestore.getAttribute('data-tipo');
+                        const id = parseInt(btnRestore.getAttribute('data-id'));
+                        restaurarRegistro(tipo, id);
+                        return;
+                    }
+                    // Borrado definitivo (papelera)
+                    const btnDelDef = e.target.closest('.btn-borrar-definitivo');
+                    if (btnDelDef) {
+                        const tipo = btnDelDef.getAttribute('data-tipo');
+                        const id = parseInt(btnDelDef.getAttribute('data-id'));
+                        eliminarDefinitivo(tipo, id);
+                        return;
+                    }
+                });
+            }
+
+            renderizar();
+        };
+    </script>
+
+    <script>
+        // Registrar Service Worker para funcionamiento offline.
+        // IMPORTANTE: los Service Workers SOLO funcionan cuando la página se sirve por HTTPS o desde localhost.
+        // Si abrís el archivo como file://, no hay Service Worker, pero igual el sistema funciona offline gracias
+        // al cacheo natural del navegador y a IndexedDB/localStorage. Para un offline 100% real, hospedalo en
+        // GitHub Pages, Netlify, Vercel u otro proveedor HTTPS.
+        if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
+            navigator.serviceWorker.register('data:application/javascript;base64,' + btoa(`
+                const CACHE_NAME = 'mundoverde-v2';
+                // Pre-cachear los assets críticos (Firebase y ExcelJS) en la instalación.
+                // Esto permite que el sistema funcione completamente sin internet después del primer acceso.
+                const PRECACHE_URLS = [
+                    'https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js',
+                    'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js',
+                    'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js'
+                ];
+
+                self.addEventListener('install', (event) => {
+                    console.log('Service Worker: Instalando...');
+                    event.waitUntil(
+                        caches.open(CACHE_NAME)
+                            .then(cache => cache.addAll(PRECACHE_URLS).catch(e => console.warn('Pre-cache parcial:', e)))
+                            .then(() => self.skipWaiting())
+                    );
+                });
+
+                self.addEventListener('activate', (event) => {
+                    console.log('Service Worker: Activando...');
+                    event.waitUntil(
+                        caches.keys().then(names =>
+                            Promise.all(names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n)))
+                        ).then(() => self.clients.claim())
+                    );
+                });
+
+                self.addEventListener('fetch', (event) => {
+                    if (event.request.method !== 'GET') return;
+                    // No interceptar las llamadas a Firestore (necesitan ir en vivo o usar la cache propia de Firebase)
+                    if (event.request.url.includes('firestore.googleapis.com')) return;
+
+                    event.respondWith(
+                        caches.open(CACHE_NAME).then((cache) => {
+                            return cache.match(event.request).then((cachedResponse) => {
+                                const fetchPromise = fetch(event.request).then((networkResponse) => {
+                                    if (networkResponse && networkResponse.status === 200) {
+                                        cache.put(event.request, networkResponse.clone());
+                                    }
+                                    return networkResponse;
+                                }).catch(() => cachedResponse);
+
+                                return cachedResponse || fetchPromise;
+                            });
+  
