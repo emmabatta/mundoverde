@@ -2569,10 +2569,25 @@
 
         function actualizarStats() {
             const totales = calcularTotales();
-            
-            document.getElementById('stat-emma').textContent = '$' + formatearNumero(totales.emmaDebe);
+
+            // Si emmaDebe es negativo, significa que Emma pagó MÁS de su parte → mostrarlo positivo y verde
+            const emmaEl = document.getElementById('stat-emma');
+            if (totales.emmaDebe < 0) {
+                emmaEl.innerHTML = '✅ Pagado de más:<br>$' + formatearNumero(Math.abs(totales.emmaDebe));
+                emmaEl.style.fontSize = '20px';
+            } else {
+                emmaEl.textContent = '$' + formatearNumero(totales.emmaDebe);
+                emmaEl.style.fontSize = '';
+            }
+            const pabloEl = document.getElementById('stat-pablo');
+            if (totales.pabloDebe < 0) {
+                pabloEl.innerHTML = '✅ Pagado de más:<br>$' + formatearNumero(Math.abs(totales.pabloDebe));
+                pabloEl.style.fontSize = '20px';
+            } else {
+                pabloEl.textContent = '$' + formatearNumero(totales.pabloDebe);
+                pabloEl.style.fontSize = '';
+            }
             document.getElementById('stat-emma-pagado').textContent = '$' + formatearNumero(totales.emmaPagado);
-            document.getElementById('stat-pablo').textContent = '$' + formatearNumero(totales.pabloDebe);
             document.getElementById('stat-pablo-pagado').textContent = '$' + formatearNumero(totales.pabloPagado);
             
             let detalleEmma = '';
@@ -4674,9 +4689,17 @@
 window.onload = async function() {
             // Migrar PIN viejo (single) al nuevo formato (Emma+Pablo) si corresponde
             migrarPinLegacy();
-            // Mostrar pantalla de PIN si está configurado al menos uno
+            // Si hay al menos un PIN configurado: pedir el PIN para entrar
+            // Si NO hay PINs: forzar configuración inicial (no se puede saltar)
             if (pinExiste()) {
                 mostrarPantallaPin('enter');
+            } else {
+                // Esperar 600ms para que la app cargue y entonces forzar configuración inicial
+                setTimeout(() => {
+                    if (!pinExiste()) {
+                        mostrarPantallaPin('set_emma');
+                    }
+                }, 600);
             }
 
             // Reiniciar timer de inactividad ante actividad del usuario
@@ -4828,30 +4851,4 @@ window.onload = async function() {
 
                     event.respondWith(
                         caches.open(CACHE_NAME).then((cache) => {
-                            return cache.match(event.request).then((cachedResponse) => {
-                                const fetchPromise = fetch(event.request).then((networkResponse) => {
-                                    if (networkResponse && networkResponse.status === 200) {
-                                        cache.put(event.request, networkResponse.clone());
-                                    }
-                                    return networkResponse;
-                                }).catch(() => cachedResponse);
-
-                                return cachedResponse || fetchPromise;
-                            });
-                        })
-                    );
-                });
-            `)).then(() => {
-                console.log('✅ Service Worker registrado');
-            }).catch(err => {
-                console.log('⚠️ Service Worker no disponible:', err);
-            });
-        } else if (window.location.protocol === 'file:') {
-            console.log('ℹ️ Service Worker omitido en modo file:// (abrir desde un host HTTPS para offline avanzado)');
-        }
-    </script>
-
-
-
-</body>
-</html>
+                            r
