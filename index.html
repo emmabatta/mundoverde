@@ -521,6 +521,7 @@
                         <option value="Emma">👩‍🌾 Emma</option>
                         <option value="Pablo">👨‍🌾 Pablo</option>
                     </select>
+                    <button id="btn-cambiar-usuario" onclick="cambiarUsuario()" style="background:#7b1fa2;color:white;border:none;padding:4px 10px;border-radius:12px;font-size:12px;cursor:pointer;display:none;" title="Bloquear y cambiar de usuario (pide PIN)">🔄</button>
                 </div>
             </div>
             
@@ -580,16 +581,21 @@
 
     <script>
 
-        // ===== SISTEMA DE PIN DE BLOQUEO =====
-        // PIN simple de 4 dígitos almacenado en localStorage. No reemplaza autenticación real,
-        // pero impide el acceso casual de alguien que conozca la URL.
-        const PIN_KEY = 'mundoverde_pin';
+        // ===== SISTEMA DE PIN DOBLE (Emma + Pablo) =====
+        // Cada usuario tiene su propio PIN. El PIN ingresado define quién entra.
+        // Si solo hay UN PIN configurado, funciona como PIN simple.
+        // Si no hay ninguno, no se pide PIN (modo abierto, recomendado configurar al menos uno).
+        const PIN_EMMA_KEY = 'mundoverde_pin_emma';
+        const PIN_PABLO_KEY = 'mundoverde_pin_pablo';
         const PIN_ATTEMPTS_KEY = 'mundoverde_pin_attempts';
         const PIN_LOCKED_UNTIL_KEY = 'mundoverde_pin_locked_until';
         const PIN_USER_KEY = 'mundoverde_active_user';
+        // Compatibilidad con versiones viejas (que usaban una sola key 'mundoverde_pin')
+        const PIN_LEGACY_KEY = 'mundoverde_pin';
         let pinBuffer = '';
-        let pinMode = 'enter'; // 'enter' | 'set' | 'confirm' | 'change_old' | 'change_new' | 'change_confirm'
+        let pinMode = 'enter'; // 'enter' | 'set_emma' | 'confirm_emma' | 'set_pablo' | 'confirm_pablo' | 'change_old' | 'change_new' | 'change_confirm'
         let pinTempNuevo = '';
+        let pinUsuarioCambiando = null; // Quién está cambiando su PIN actualmente
 
         function pinHash(pin) {
             // Hash simple para no guardar el PIN en plano (no es criptográficamente seguro, pero ofusca)
@@ -598,8 +604,40 @@
             return 'h_' + h.toString(36) + '_' + pin.length;
         }
 
+        // Migración de PIN viejo (single) → nuevo formato (Emma+Pablo)
+        function migrarPinLegacy() {
+            const legacy = localStorage.getItem(PIN_LEGACY_KEY);
+            if (legacy && !localStorage.getItem(PIN_EMMA_KEY) && !localStorage.getItem(PIN_PABLO_KEY)) {
+                // Asignar el PIN viejo al usuario actualmente activo (default: Emma)
+                const usuario = localStorage.getItem(PIN_USER_KEY) || 'Emma';
+                if (usuario === 'Pablo') {
+                    localStorage.setItem(PIN_PABLO_KEY, legacy);
+                } else {
+                    localStorage.setItem(PIN_EMMA_KEY, legacy);
+                }
+                localStorage.removeItem(PIN_LEGACY_KEY);
+                console.log('🔄 PIN viejo migrado al nuevo formato (asignado a ' + usuario + ')');
+            }
+        }
+
+        // ¿Hay AL MENOS UN PIN configurado? (suficiente para pedir bloqueo al abrir)
         function pinExiste() {
-            return !!localStorage.getItem(PIN_KEY);
+            return !!(localStorage.getItem(PIN_EMMA_KEY) || localStorage.getItem(PIN_PABLO_KEY));
+        }
+        // ¿Están AMBOS PINs configurados?
+        function pinAmbosConfigurados() {
+            return !!(localStorage.getItem(PIN_EMMA_KEY) && localStorage.getItem(PIN_PABLO_KEY));
+        }
+        // ¿Está configurado el PIN de un usuario específico?
+        function pinExisteUsuario(usuario) {
+            return !!localStorage.getItem(usuario === 'Pablo' ? PIN_PABLO_KEY : PIN_EMMA_KEY);
+        }
+        // Detectar a qué usuario pertenece un PIN ingresado. Devuelve 'Emma', 'Pablo' o null.
+        function pinIdentificarUsuario(pinIngresado) {
+            const hash = pinHash(pinIngresado);
+            if (hash === localStorage.getItem(PIN_EMMA_KEY)) return 'Emma';
+            if (hash === localStorage.getItem(PIN_PABLO_KEY)) return 'Pablo';
+            return null;
         }
 
         function pinBloqueado() {
@@ -617,7 +655,10 @@
         function mostrarPantallaPin(modo = 'enter') {
             pinMode = modo;
             pinBuffer = '';
-            pinTempNuevo = '';
+            // Si vamos de set_emma a set_pablo (sin reset), no pisamos pinTempNuevo
+            if (!['confirm_emma','confirm_pablo','change_new','change_confirm'].includes(modo)) {
+                pinTempNuevo = '';
+            }
             const overlay = document.getElementById('pin-overlay');
             const title = document.getElementById('pin-title');
             const subtitle = document.getElementById('pin-subtitle');
@@ -629,24 +670,42 @@
                 error.innerHTML = '<span class="pin-attempts-locked">🔒 Bloqueado. Intentá en ' + segundosBloqueo + ' segundos.</span>';
             }
 
-            if (modo === 'set') {
-                title.textContent = 'Configurar PIN';
-                subtitle.textContent = 'Elegí un PIN de 4 dígitos para tu app. Compartilo solo con personas de confianza.';
-            } else if (modo === 'confirm') {
-                title.textContent = 'Confirmar PIN';
-                subtitle.textContent = 'Repetí el mismo PIN para confirmarlo';
+            if (modo === 'set_emma') {
+                title.textContent = '👩‍🌾 PIN de Emma';
+                subtitle.textContent = 'Emma, elegí tu PIN de 4 dígitos. Solo vos lo conocés.';
+            } else if (modo === 'confirm_emma') {
+                title.textContent = '👩‍🌾 Confirmar PIN de Emma';
+                subtitle.textContent = 'Repetilo para confirmar';
+            } else if (modo === 'set_pablo') {
+                title.textContent = '👨‍🌾 PIN de Pablo';
+                subtitle.textContent = 'Pablo, elegí tu PIN de 4 dígitos. Solo vos lo conocés.';
+            } else if (modo === 'confirm_pablo') {
+                title.textContent = '👨‍🌾 Confirmar PIN de Pablo';
+                subtitle.textContent = 'Repetilo para confirmar';
             } else if (modo === 'change_old') {
-                title.textContent = 'PIN actual';
+                const u = pinUsuarioCambiando || obtenerUsuarioActivo();
+                title.textContent = '🔑 PIN actual de ' + u;
                 subtitle.textContent = 'Ingresá tu PIN actual para cambiarlo';
             } else if (modo === 'change_new') {
-                title.textContent = 'Nuevo PIN';
+                const u = pinUsuarioCambiando || obtenerUsuarioActivo();
+                title.textContent = '🔑 Nuevo PIN de ' + u;
                 subtitle.textContent = 'Ingresá el PIN nuevo';
             } else if (modo === 'change_confirm') {
-                title.textContent = 'Confirmar nuevo PIN';
+                const u = pinUsuarioCambiando || obtenerUsuarioActivo();
+                title.textContent = '🔑 Confirmar PIN de ' + u;
                 subtitle.textContent = 'Repetí el PIN nuevo';
             } else {
+                // Modo 'enter' (default)
                 title.textContent = 'MundoVerde';
-                subtitle.textContent = 'Ingresá tu PIN de 4 dígitos';
+                if (pinAmbosConfigurados()) {
+                    subtitle.textContent = 'Ingresá tu PIN (Emma o Pablo). El sistema te identifica.';
+                } else if (pinExisteUsuario('Emma')) {
+                    subtitle.textContent = 'Ingresá el PIN de 👩‍🌾 Emma';
+                } else if (pinExisteUsuario('Pablo')) {
+                    subtitle.textContent = 'Ingresá el PIN de 👨‍🌾 Pablo';
+                } else {
+                    subtitle.textContent = 'Ingresá tu PIN de 4 dígitos';
+                }
             }
 
             actualizarPinDots();
@@ -700,25 +759,62 @@
             const error = document.getElementById('pin-error');
             const overlay = document.getElementById('pin-overlay');
 
-            if (pinMode === 'set') {
+            // ===== Configuración inicial: Emma =====
+            if (pinMode === 'set_emma') {
                 pinTempNuevo = pinBuffer;
-                setTimeout(() => mostrarPantallaPin('confirm'), 250);
+                setTimeout(() => mostrarPantallaPin('confirm_emma'), 250);
                 return;
             }
-            if (pinMode === 'confirm') {
+            if (pinMode === 'confirm_emma') {
                 if (pinBuffer === pinTempNuevo) {
-                    localStorage.setItem(PIN_KEY, pinHash(pinBuffer));
-                    overlay.style.display = 'none';
-                    showToast('PIN configurado correctamente', 'success', 3000);
-                    iniciarTimerInactividad();
+                    localStorage.setItem(PIN_EMMA_KEY, pinHash(pinBuffer));
+                    showToast('PIN de Emma configurado ✓', 'success', 2500);
+                    // Pasar a configurar Pablo (a menos que ya esté)
+                    if (!pinExisteUsuario('Pablo')) {
+                        setTimeout(() => mostrarPantallaPin('set_pablo'), 800);
+                    } else {
+                        overlay.style.display = 'none';
+                        guardarUsuarioActivo('Emma');
+                        actualizarSelectorYHeader();
+                        iniciarTimerInactividad();
+                    }
                 } else {
                     error.textContent = '❌ Los PIN no coinciden, empezá de nuevo';
-                    setTimeout(() => mostrarPantallaPin('set'), 1200);
+                    setTimeout(() => mostrarPantallaPin('set_emma'), 1200);
                 }
                 return;
             }
+            // ===== Configuración inicial: Pablo =====
+            if (pinMode === 'set_pablo') {
+                // El PIN de Pablo no puede ser igual al de Emma
+                if (pinHash(pinBuffer) === localStorage.getItem(PIN_EMMA_KEY)) {
+                    error.textContent = '❌ El PIN de Pablo no puede ser igual al de Emma';
+                    pinBuffer = '';
+                    setTimeout(() => actualizarPinDots(), 700);
+                    return;
+                }
+                pinTempNuevo = pinBuffer;
+                setTimeout(() => mostrarPantallaPin('confirm_pablo'), 250);
+                return;
+            }
+            if (pinMode === 'confirm_pablo') {
+                if (pinBuffer === pinTempNuevo) {
+                    localStorage.setItem(PIN_PABLO_KEY, pinHash(pinBuffer));
+                    overlay.style.display = 'none';
+                    showToast('PIN de Pablo configurado ✓ — Ambos PINs listos', 'success', 3500);
+                    actualizarSelectorYHeader();
+                    iniciarTimerInactividad();
+                } else {
+                    error.textContent = '❌ Los PIN no coinciden';
+                    setTimeout(() => mostrarPantallaPin('set_pablo'), 1200);
+                }
+                return;
+            }
+            // ===== Cambio de PIN del usuario activo =====
             if (pinMode === 'change_old') {
-                if (pinHash(pinBuffer) === localStorage.getItem(PIN_KEY)) {
+                const usuario = pinUsuarioCambiando || obtenerUsuarioActivo();
+                const keyUsuario = usuario === 'Pablo' ? PIN_PABLO_KEY : PIN_EMMA_KEY;
+                if (pinHash(pinBuffer) === localStorage.getItem(keyUsuario)) {
                     setTimeout(() => mostrarPantallaPin('change_new'), 200);
                 } else {
                     error.textContent = '❌ PIN incorrecto';
@@ -728,15 +824,27 @@
                 return;
             }
             if (pinMode === 'change_new') {
+                // No puede ser igual al PIN del OTRO usuario
+                const usuario = pinUsuarioCambiando || obtenerUsuarioActivo();
+                const otroKey = usuario === 'Pablo' ? PIN_EMMA_KEY : PIN_PABLO_KEY;
+                if (pinHash(pinBuffer) === localStorage.getItem(otroKey)) {
+                    error.textContent = '❌ Ese PIN ya lo usa el otro usuario';
+                    pinBuffer = '';
+                    setTimeout(() => actualizarPinDots(), 700);
+                    return;
+                }
                 pinTempNuevo = pinBuffer;
                 setTimeout(() => mostrarPantallaPin('change_confirm'), 250);
                 return;
             }
             if (pinMode === 'change_confirm') {
                 if (pinBuffer === pinTempNuevo) {
-                    localStorage.setItem(PIN_KEY, pinHash(pinBuffer));
+                    const usuario = pinUsuarioCambiando || obtenerUsuarioActivo();
+                    const keyUsuario = usuario === 'Pablo' ? PIN_PABLO_KEY : PIN_EMMA_KEY;
+                    localStorage.setItem(keyUsuario, pinHash(pinBuffer));
                     overlay.style.display = 'none';
-                    showToast('PIN actualizado', 'success', 3000);
+                    showToast('PIN de ' + usuario + ' actualizado ✓', 'success', 3000);
+                    pinUsuarioCambiando = null;
                     iniciarTimerInactividad();
                 } else {
                     error.textContent = '❌ Los PIN no coinciden';
@@ -744,11 +852,16 @@
                 }
                 return;
             }
-            // Modo enter
-            if (pinHash(pinBuffer) === localStorage.getItem(PIN_KEY)) {
+            // ===== Modo enter (login normal): identificar usuario por el PIN =====
+            const usuarioIdentificado = pinIdentificarUsuario(pinBuffer);
+            if (usuarioIdentificado) {
+                // PIN correcto, entra como ese usuario
                 localStorage.removeItem(PIN_ATTEMPTS_KEY);
+                guardarUsuarioActivo(usuarioIdentificado);
+                actualizarSelectorYHeader();
                 overlay.style.display = 'none';
                 iniciarTimerInactividad();
+                showToast('Bienvenido/a ' + usuarioIdentificado + ' 👋', 'success', 2500);
             } else {
                 let intentos = parseInt(localStorage.getItem(PIN_ATTEMPTS_KEY) || '0', 10) + 1;
                 localStorage.setItem(PIN_ATTEMPTS_KEY, String(intentos));
@@ -764,6 +877,23 @@
                     setTimeout(() => actualizarPinDots(), 500);
                 }
             }
+        }
+
+        // Refresca el selector del header y vuelve a renderizar el tab actual
+        function actualizarSelectorYHeader() {
+            const sel = document.getElementById('usuario-activo');
+            if (sel) sel.value = obtenerUsuarioActivo();
+            // Si ambos PINs configurados, marcar como solo lectura (cambio se hace por PIN)
+            if (sel) {
+                if (pinAmbosConfigurados()) {
+                    sel.disabled = true;
+                    sel.title = 'Para cambiar de usuario, usá "🔄 Cambiar usuario" (te pide PIN)';
+                } else {
+                    sel.disabled = false;
+                    sel.title = '';
+                }
+            }
+            try { renderizar(); } catch (e) {}
         }
 
         // Auto-bloqueo por inactividad (15 minutos por defecto)
@@ -783,25 +913,60 @@
             if (pinExiste()) {
                 mostrarPantallaPin('enter');
             } else {
-                showToast('Primero configurá un PIN desde "Lotes & Config"', 'info', 3500);
+                showToast('Primero configurá los PINs desde "Lotes & Config"', 'info', 3500);
             }
         }
-        async function cambiarPin() {
-            if (pinExiste()) mostrarPantallaPin('change_old');
-            else mostrarPantallaPin('set');
+        // Cambiar de usuario: bloquea la app y pide el PIN del otro usuario
+        async function cambiarUsuario() {
+            if (!pinAmbosConfigurados()) {
+                showToast('Para cambiar de usuario, primero configurá los PINs de ambos en "Lotes & Config"', 'warning', 4500);
+                return;
+            }
+            mostrarPantallaPin('enter');
         }
-        async function quitarPin() {
-            const ok = await confirmarModal('¿Quitar el PIN de bloqueo?\n\nLa app dejará de pedir clave al abrir.', { titulo: 'Quitar PIN', confirmar: 'Sí, quitar', peligroso: true });
-            if (ok) {
-                const ok2 = await confirmarModal('Confirmá una vez más. Sin PIN, cualquier persona con la URL puede ver tus datos.', { titulo: '¿Estás segura?', confirmar: 'Sí, dejá la app sin PIN', peligroso: true });
-                if (ok2) {
-                    localStorage.removeItem(PIN_KEY);
-                    localStorage.removeItem(PIN_ATTEMPTS_KEY);
-                    localStorage.removeItem(PIN_LOCKED_UNTIL_KEY);
-                    showToast('PIN eliminado', 'info', 2500);
-                }
+        // Iniciar configuración de PINs (ambos)
+        async function configurarPinsIniciales() {
+            // Si Emma todavía no tiene PIN, empieza por Emma
+            if (!pinExisteUsuario('Emma')) {
+                pinUsuarioCambiando = null;
+                mostrarPantallaPin('set_emma');
+            } else if (!pinExisteUsuario('Pablo')) {
+                pinUsuarioCambiando = null;
+                mostrarPantallaPin('set_pablo');
+            } else {
+                showToast('Ambos PINs ya están configurados. Usá "Cambiar mi PIN" para modificar.', 'info', 4000);
             }
         }
+        // Cambiar el PIN de un usuario específico (debe ser el activo o tener permiso)
+        async function cambiarPin(usuario) {
+            // Si no se especifica, asume el usuario activo
+            const u = usuario || obtenerUsuarioActivo();
+            if (!pinExisteUsuario(u)) {
+                // No tiene PIN aún → flujo de configuración inicial
+                pinUsuarioCambiando = u;
+                mostrarPantallaPin(u === 'Pablo' ? 'set_pablo' : 'set_emma');
+            } else {
+                pinUsuarioCambiando = u;
+                mostrarPantallaPin('change_old');
+            }
+        }
+        // Quitar el PIN de un usuario (con confirmación doble)
+        async function quitarPinUsuario(usuario) {
+            const u = usuario || obtenerUsuarioActivo();
+            if (!pinExisteUsuario(u)) {
+                showToast(u + ' no tiene PIN configurado', 'info', 2500);
+                return;
+            }
+            const ok = await confirmarModal('¿Quitar el PIN de ' + u + '?\n\n' + u + ' podrá entrar sin clave (si quedan otros PINs configurados, esos siguen funcionando).', { titulo: 'Quitar PIN de ' + u, confirmar: 'Sí, quitar', peligroso: true });
+            if (!ok) return;
+            const ok2 = await confirmarModal('Confirmá: el PIN de ' + u + ' se va a borrar definitivamente.', { titulo: '¿Estás segura?', confirmar: 'Sí, borrar PIN', peligroso: true });
+            if (!ok2) return;
+            localStorage.removeItem(u === 'Pablo' ? PIN_PABLO_KEY : PIN_EMMA_KEY);
+            showToast('PIN de ' + u + ' eliminado', 'info', 2500);
+            try { renderizar(); } catch (e) {}
+        }
+        // Wrapper de compat: quitarPin sin parámetro = quita el del usuario activo
+        async function quitarPin() { return quitarPinUsuario(obtenerUsuarioActivo()); }
 
         // ===== HELPERS DE UI: TOASTS, MODALES, SANITIZACIÓN =====
 
@@ -1536,7 +1701,24 @@
             sel.addEventListener('change', function() {
                 guardarUsuarioActivo(this.value);
                 showToast('Ahora cargás como ' + this.value, 'info', 2000);
+                actualizarBotonCambiarUsuario();
             });
+            // Si ambos PINs están configurados, deshabilitar selector y mostrar botón cambiar
+            actualizarBotonCambiarUsuario();
+        }
+        function actualizarBotonCambiarUsuario() {
+            const sel = document.getElementById('usuario-activo');
+            const btn = document.getElementById('btn-cambiar-usuario');
+            if (!sel || !btn) return;
+            if (pinAmbosConfigurados()) {
+                sel.disabled = true;
+                sel.title = 'Para cambiar de usuario, usá el botón 🔄 (te pide el PIN del otro)';
+                btn.style.display = 'inline-block';
+            } else {
+                sel.disabled = false;
+                sel.title = '';
+                btn.style.display = 'none';
+            }
         }
 
         // ===== COLA DE SINCRONIZACIÓN OFFLINE =====
@@ -2608,15 +2790,47 @@
                 contenedor.innerHTML = `
                     <h2>Lotes & Configuración</h2>
 
-                    <!-- Sección de seguridad y mantenimiento -->
+                    <!-- Sección de seguridad: PIN doble (Emma + Pablo) -->
                     <div class="card" style="background: #f3e5f5; border: 2px solid #ba68c8; margin-bottom: 20px;">
-                        <h3 style="color: #6a1b9a;">🔐 Seguridad</h3>
-                        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
-                            <button class="btn-success" onclick="cambiarPin()">${pinExiste() ? '🔑 Cambiar PIN' : '🔐 Configurar PIN'}</button>
-                            ${pinExiste() ? '<button class="btn-secundario" onclick="bloquearAhora()">🔒 Bloquear ahora</button>' : ''}
-                            ${pinExiste() ? '<button class="btn-danger" onclick="quitarPin()">❌ Quitar PIN</button>' : ''}
+                        <h3 style="color: #6a1b9a;">🔐 Seguridad — PINs por usuario</h3>
+                        <p style="font-size:13px;color:#666;margin:10px 0;">Cada uno tiene su PIN propio. Al ingresar el PIN, el sistema sabe automáticamente si es Emma o Pablo. Cada movimiento queda etiquetado con quién lo cargó.</p>
+
+                        ${(!pinExisteUsuario('Emma') && !pinExisteUsuario('Pablo')) ? `
+                            <div style="background:#fff3e0;border:1px solid #ff9800;padding:12px;border-radius:8px;margin:10px 0;">
+                                <strong>⚠️ Sin PINs configurados.</strong> Cualquiera con la URL puede entrar y modificar datos. Te recomendamos configurarlos ahora.
+                                <div style="margin-top:10px;">
+                                    <button class="btn-success" onclick="configurarPinsIniciales()" style="font-size:15px;padding:12px 18px;">🔐 Configurar PINs ahora</button>
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+                            <!-- Emma -->
+                            <div style="background:white;padding:12px;border-radius:8px;border:1px solid #e1bee7;">
+                                <div style="font-weight:bold;color:#6a1b9a;margin-bottom:8px;">👩‍🌾 Emma</div>
+                                <div style="font-size:13px;color:#666;margin-bottom:10px;">${pinExisteUsuario('Emma') ? '✅ PIN configurado' : '⚠️ Sin PIN'}</div>
+                                <div style="display:flex;flex-direction:column;gap:6px;">
+                                    <button class="btn-success" style="font-size:13px;padding:8px;" onclick="cambiarPin('Emma')">${pinExisteUsuario('Emma') ? '🔑 Cambiar PIN de Emma' : '🔐 Configurar PIN de Emma'}</button>
+                                    ${pinExisteUsuario('Emma') ? '<button class="btn-danger" style="font-size:12px;padding:6px;" onclick="quitarPinUsuario(\'Emma\')">❌ Quitar PIN de Emma</button>' : ''}
+                                </div>
+                            </div>
+                            <!-- Pablo -->
+                            <div style="background:white;padding:12px;border-radius:8px;border:1px solid #90caf9;">
+                                <div style="font-weight:bold;color:#1565c0;margin-bottom:8px;">👨‍🌾 Pablo</div>
+                                <div style="font-size:13px;color:#666;margin-bottom:10px;">${pinExisteUsuario('Pablo') ? '✅ PIN configurado' : '⚠️ Sin PIN'}</div>
+                                <div style="display:flex;flex-direction:column;gap:6px;">
+                                    <button class="btn-success" style="font-size:13px;padding:8px;" onclick="cambiarPin('Pablo')">${pinExisteUsuario('Pablo') ? '🔑 Cambiar PIN de Pablo' : '🔐 Configurar PIN de Pablo'}</button>
+                                    ${pinExisteUsuario('Pablo') ? '<button class="btn-danger" style="font-size:12px;padding:6px;" onclick="quitarPinUsuario(\'Pablo\')">❌ Quitar PIN de Pablo</button>' : ''}
+                                </div>
+                            </div>
                         </div>
-                        <p style="font-size:13px;color:#666;margin-top:10px;">${pinExiste() ? 'PIN configurado. La app pide clave al abrir.' : 'Sin PIN. Cualquiera con la URL puede entrar. Configurá uno.'}</p>
+
+                        ${pinExiste() ? `
+                            <div style="margin-top:15px;display:flex;flex-wrap:wrap;gap:8px;">
+                                <button class="btn-secundario" onclick="bloquearAhora()">🔒 Bloquear ahora</button>
+                                ${pinAmbosConfigurados() ? '<button class="btn-secundario" onclick="cambiarUsuario()" style="background:#7b1fa2;">🔄 Cambiar de usuario</button>' : ''}
+                            </div>
+                        ` : ''}
                     </div>
 
                     <!-- Sección de papelera -->
@@ -4458,7 +4672,9 @@
         });
 
 window.onload = async function() {
-            // Mostrar pantalla de PIN si está configurado, o invitar a configurarlo si nunca se hizo
+            // Migrar PIN viejo (single) al nuevo formato (Emma+Pablo) si corresponde
+            migrarPinLegacy();
+            // Mostrar pantalla de PIN si está configurado al menos uno
             if (pinExiste()) {
                 mostrarPantallaPin('enter');
             }
@@ -4622,4 +4838,20 @@ window.onload = async function() {
 
                                 return cachedResponse || fetchPromise;
                             });
-  
+                        })
+                    );
+                });
+            `)).then(() => {
+                console.log('✅ Service Worker registrado');
+            }).catch(err => {
+                console.log('⚠️ Service Worker no disponible:', err);
+            });
+        } else if (window.location.protocol === 'file:') {
+            console.log('ℹ️ Service Worker omitido en modo file:// (abrir desde un host HTTPS para offline avanzado)');
+        }
+    </script>
+
+
+
+</body>
+</html>
