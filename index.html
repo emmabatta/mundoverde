@@ -1783,9 +1783,15 @@
             if (!firebaseIniciado || !db) return;
             
             try {
-                const timestamp = new Date().toISOString();
-                ultimoCambioLocal = timestamp; // Marcar que este cambio es local
-                
+                // Generar timestamp único para este cambio. Si por alguna razón generamos dos
+                // cambios en el mismo milisegundo, agregamos un sufijo aleatorio.
+                let timestamp = new Date().toISOString();
+                if (misTimestampsRecientes.has(timestamp)) {
+                    timestamp = timestamp + '-' + Math.random().toString(36).slice(2, 8);
+                }
+                ultimoCambioLocal = timestamp; // Compatibilidad
+                registrarTimestampPropio(timestamp); // Registrar en la lista anti race-condition
+
                 const docRef = db.collection('mundoverde').doc('datos');
                 await docRef.set({
                     trabajos: estado.trabajos,
@@ -1834,10 +1840,20 @@
             }
         }
         
-        // Escuchar cambios en tiempo real
-        // Variable para trackear si este tab hizo el último cambio
-        let ultimoCambioLocal = null;
-        
+        // ===== TRACKING DE CAMBIOS PROPIOS (anti race-condition) =====
+        // En vez de comparar solo el último timestamp, mantenemos una LISTA de los timestamps
+        // que esta pestaña generó en los últimos 30 segundos. Si el snapshot de Firebase tiene
+        // alguno de estos timestamps, lo ignoramos (es un eco de un cambio nuestro).
+        // Esto previene que cambios rápidos sucesivos (ej. usuario carga rápido, o se cambia de
+        // usuario y carga) se pisen entre sí cuando llegan snapshots demorados de Firebase.
+        let ultimoCambioLocal = null; // Mantenido por compatibilidad
+        const misTimestampsRecientes = new Set();
+        function registrarTimestampPropio(ts) {
+            misTimestampsRecientes.add(ts);
+            // Auto-limpiar después de 30 segundos para evitar acumulación de memoria
+            setTimeout(() => misTimestampsRecientes.delete(ts), 30000);
+        }
+
         function escucharCambiosFirebase() {
             if (!firebaseIniciado || !db) return;
 
@@ -1853,9 +1869,12 @@
 
                 const datos = doc.data();
 
-                // Si este cambio fue hecho por este tab, no actualizar
-                if (datos.ultimaActualizacion === ultimoCambioLocal) {
-                    console.log('📝 Cambio hecho por esta pestaña, ignorando');
+                // Si este snapshot corresponde a un cambio que YO hice (en este tab), ignorar.
+                // Comparamos contra TODOS mis cambios recientes (no solo el último), para
+                // evitar la race condition donde dos guardar() rápidos hacen que un snapshot
+                // viejo "pise" datos nuevos.
+                if (datos.ultimaActualizacion && misTimestampsRecientes.has(datos.ultimaActualizacion)) {
+                    console.log('📝 Snapshot de cambio propio, ignorando (' + datos.ultimaActualizacion + ')');
                     return;
                 }
 
@@ -3054,7 +3073,7 @@
                     
                     ${estado.tractoristas.map(tractorista => {
                         const info = calcularPorTractorista(tractorista);
-                        const trabajosDelTractorista = ordenarPorFecha(estado.trabajos.filter(t => t.tractorista === tractorista));
+                        const trabajosDelTractorista = ordenarPorFecha(activos(estado.trabajos).filter(t => t.tractorista === tractorista));
 
                         return `
                             <div style="background: #e3f2fd; padding: 25px; border-radius: 15px; margin-bottom: 25px;">
@@ -3141,7 +3160,8 @@
                     </table>
                 `;
             } else if (tabActual === 'gastos') {
-                const totalGastos = estado.gastosGenerales.reduce((s, g) => s + (isNaN(g.monto) ? 0 : g.monto), 0);
+                // Solo sumar gastos ACTIVOS (excluir los que están en papelera)
+                const totalGastos = activos(estado.gastosGenerales).reduce((s, g) => s + (isNaN(g.monto) ? 0 : g.monto), 0);
                 contenedor.innerHTML = `
                     <h2>Gastos Generales</h2>
                     
@@ -3568,7 +3588,7 @@
                                 <tbody>
                                     ${estado.tractoristas.map(t => {
                                         const info = calcularPorTractorista(t);
-                                        const cantTrabajos = estado.trabajos.filter(tr => tr.tractorista === t).length;
+                                        const cantTrabajos = activos(estado.trabajos).filter(tr => tr.tractorista === t).length;
                                         return `
                                             <tr>
                                                 <td><strong>${escHtml(t)}</strong></td>
@@ -4178,9 +4198,9 @@
                 headerTrabajos.alignment = { vertical: 'middle', horizontal: 'center' };
                 headerTrabajos.height = 25;
                 
-                // Datos
+                // Datos (solo trabajos ACTIVOS, no los de papelera)
                 let totalTrabajos = 0;
-                estado.trabajos.forEach((t, i) => {
+                activos(estado.trabajos).forEach((t, i) => {
                     const cantidad = t.actividad === 'Otra actividad' ? '-' : t.cantidad;
                     const total = t.actividad === 'Otra actividad' ? t.precio : (t.cantidad * t.precio);
                     totalTrabajos += total;
@@ -4238,7 +4258,7 @@
                 headerPagos.height = 25;
                 
                 let totalPagos = 0;
-                estado.pagosTractoristas.forEach((p, i) => {
+                activos(estado.pagosTractoristas).forEach((p, i) => {
                     totalPagos += p.monto;
                     const row = wsPagos.addRow([p.fecha, p.tractorista, p.pagador, p.monto, p.concepto || '']);
                     
@@ -4278,7 +4298,7 @@
                 headerGastos.height = 25;
                 
                 let totalGastos = 0;
-                estado.gastosGenerales.forEach((g, i) => {
+                activos(estado.gastosGenerales).forEach((g, i) => {
                     totalGastos += g.monto;
                     const row = wsGastos.addRow([g.fecha, g.concepto, g.pagador, g.monto, g.detalle || '']);
                     
@@ -4318,7 +4338,7 @@
                 headerBalance.height = 25;
                 
                 let totalBalance = 0;
-                estado.pagosEntreEmmaYPablo.forEach((p, i) => {
+                activos(estado.pagosEntreEmmaYPablo).forEach((p, i) => {
                     const aQuien = p.pagador === 'Emma' ? 'Pablo' : 'Emma';
                     totalBalance += p.monto;
                     const row = wsBalance.addRow([p.fecha, p.pagador, aQuien, p.monto, p.concepto || '']);
@@ -4839,16 +4859,4 @@ window.onload = async function() {
                     console.log('Service Worker: Activando...');
                     event.waitUntil(
                         caches.keys().then(names =>
-                            Promise.all(names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n)))
-                        ).then(() => self.clients.claim())
-                    );
-                });
-
-                self.addEventListener('fetch', (event) => {
-                    if (event.request.method !== 'GET') return;
-                    // No interceptar las llamadas a Firestore (necesitan ir en vivo o usar la cache propia de Firebase)
-                    if (event.request.url.includes('firestore.googleapis.com')) return;
-
-                    event.respondWith(
-                        caches.open(CACHE_NAME).then((cache) => {
-                            r
+                            Promise.all(names.filter(n => n !== CACHE_NAME).map(n => caches.delete(
