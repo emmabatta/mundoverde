@@ -527,24 +527,24 @@
             
             <div class="stats">
                 <div class="stat-card purple">
-                    <div>👨‍🌾 EMMA - Saldo pendiente</div>
+                    <div>👩‍🌾 EMMA <span id="stat-emma-label" style="font-size:12px;opacity:0.85;">— Saldo real</span></div>
                     <div class="stat-value" id="stat-emma">$0</div>
                     <div class="stat-detail">
-                        <div>Pagado: <span id="stat-emma-pagado">$0</span></div>
+                        <div>Total que puso: <span id="stat-emma-pagado">$0</span></div>
                         <div id="stat-emma-detalle"></div>
                     </div>
                 </div>
                 <div class="stat-card blue">
-                    <div>👨‍🌾 PABLO - Saldo pendiente</div>
+                    <div>👨‍🌾 PABLO <span id="stat-pablo-label" style="font-size:12px;opacity:0.85;">— Saldo real</span></div>
                     <div class="stat-value" id="stat-pablo">$0</div>
                     <div class="stat-detail">
-                        <div>Pagado: <span id="stat-pablo-pagado">$0</span></div>
+                        <div>Total que puso: <span id="stat-pablo-pagado">$0</span></div>
                         <div id="stat-pablo-detalle"></div>
                     </div>
                 </div>
                 <div class="stat-card green">
-                    <div>Balance Emma-Pablo</div>
-                    <div class="stat-value" id="stat-balance">Equilibrado ✅</div>
+                    <div>Estado de cuenta</div>
+                    <div class="stat-value" id="stat-balance" style="font-size:20px;">Equilibrado ✅</div>
                 </div>
                 <div class="excel-buttons">
                     <button class="btn-export" onclick="exportarATodo()" title="Exportar todo a Excel con formato">
@@ -563,14 +563,11 @@
 
         <div class="tabs">
             <div class="tab-list" id="tabs">
-                <button class="tab active" data-tab="trabajo">📝 Registro Trabajo</button>
-                <button class="tab" data-tab="pagos">💳 Pagos Tractoristas</button>
-                <button class="tab" data-tab="gastos">💰 Gastos</button>
-                <button class="tab" data-tab="movimientos">📋 Movimientos</button>
-                <button class="tab" data-tab="balance">⚖️ Balance Emma-Pablo</button>
-                <button class="tab" data-tab="resumen-general">📊 Resumen General</button>
+                <button class="tab active" data-tab="trabajo">📝 Trabajos</button>
+                <button class="tab" data-tab="movimientos">💸 Movimientos</button>
+                <button class="tab" data-tab="balance">⚖️ Balance</button>
                 <button class="tab" data-tab="dashboard">📈 Dashboard</button>
-                <button class="tab" data-tab="config">⚙️ Lotes & Config</button>
+                <button class="tab" data-tab="config">⚙️ Config</button>
             </div>
         </div>
 
@@ -2138,10 +2135,7 @@
             });
         }
         
-        // Detección de pérdida de datos.
-        // Mejora v3.7: si el usuario dice "No, dejar así", recordamos esa decisión y no
-        // volvemos a preguntar para esa misma versión histórica. Solo volveríamos a preguntar
-        // si aparece una versión MÁS RECIENTE con más datos.
+        // Detección de pérdida de datos (v3.7: recuerda si el usuario descartó el aviso)
         const PERDIDA_DESCARTADA_KEY = 'mundoverde_perdida_descartada';
         async function detectarPerdidaDatos(datosActuales) {
             try {
@@ -2153,36 +2147,33 @@
                 }
 
                 // ¿Ya descartamos antes este aviso para esta versión exacta?
-                // Comparamos timestamp de la versión + cantidades para asegurarnos de que es la misma.
                 const descartadoRaw = localStorage.getItem(PERDIDA_DESCARTADA_KEY);
                 if (descartadoRaw) {
                     try {
-                        const descartado = JSON.parse(descartadoRaw);
-                        if (descartado.timestamp === ultimaVersion.timestamp &&
-                            descartado.cantidadTrabajos === ultimaVersion.cantidadTrabajos &&
-                            descartado.cantidadPagos === ultimaVersion.cantidadPagos &&
-                            descartado.cantidadGastos === ultimaVersion.cantidadGastos) {
-                            console.log('ℹ️ Aviso de pérdida ya descartado por el usuario, no volver a mostrar');
+                        const d = JSON.parse(descartadoRaw);
+                        if (d.timestamp === ultimaVersion.timestamp &&
+                            d.cantidadTrabajos === ultimaVersion.cantidadTrabajos &&
+                            d.cantidadPagos === ultimaVersion.cantidadPagos &&
+                            d.cantidadGastos === ultimaVersion.cantidadGastos) {
+                            console.log('ℹ️ Aviso de pérdida ya descartado por el usuario');
                             return false;
                         }
-                    } catch (e) {
-                        // Si está corrupto, lo ignoramos y seguimos
-                    }
+                    } catch (e) {}
                 }
 
                 const trabajosActuales = datosActuales.trabajos?.length || 0;
                 const pagosActuales = datosActuales.pagosTractoristas?.length || 0;
                 const gastosActuales = datosActuales.gastosGenerales?.length || 0;
-
+                
                 const trabajosAnteriores = ultimaVersion.cantidadTrabajos || 0;
                 const pagosAnteriores = ultimaVersion.cantidadPagos || 0;
                 const gastosAnteriores = ultimaVersion.cantidadGastos || 0;
-
+                
                 // Detectar pérdida significativa (más del 50% de los datos)
                 const perdidaTrabajos = trabajosAnteriores > 0 && trabajosActuales < (trabajosAnteriores * 0.5);
                 const perdidaPagos = pagosAnteriores > 0 && pagosActuales < (pagosAnteriores * 0.5);
                 const perdidaGastos = gastosAnteriores > 0 && gastosActuales < (gastosAnteriores * 0.5);
-
+                
                 if (perdidaTrabajos || perdidaPagos || perdidaGastos) {
                     const mensaje = '⚠️ Se detectó una posible pérdida de datos.\n\n' +
                         'Datos anteriores (' + ultimaVersion.fecha + '):\n' +
@@ -2203,27 +2194,23 @@
                     });
 
                     if (restaurar) {
-                        // Si restauró, limpiar el flag de descartado
                         localStorage.removeItem(PERDIDA_DESCARTADA_KEY);
                         await restaurarVersion(ultimaVersion.fecha);
                         return true;
                     } else {
-                        // Si dijo "No, dejar así": recordar esta decisión para no molestar de nuevo
+                        // Recordar la decisión para no volver a molestar con esta versión
                         localStorage.setItem(PERDIDA_DESCARTADA_KEY, JSON.stringify({
                             timestamp: ultimaVersion.timestamp,
                             cantidadTrabajos: ultimaVersion.cantidadTrabajos,
                             cantidadPagos: ultimaVersion.cantidadPagos,
-                            cantidadGastos: ultimaVersion.cantidadGastos,
-                            descartadoEn: Date.now()
+                            cantidadGastos: ultimaVersion.cantidadGastos
                         }));
-                        console.log('ℹ️ Aviso descartado por el usuario, no volverá a aparecer para esta versión');
                     }
                 }
 
                 return false;
             } catch (error) {
                 console.error('❌ Error al detectar pérdida de datos:', error);
-                // No bloquear la carga del sistema si falla la detección
                 return false;
             }
         }
@@ -2620,46 +2607,67 @@
             };
         }
 
+        // v3.8: actualizarStats ahora usa el balance COMPLETO (incluye pagos Emma-Pablo y gastos).
+        // Antes solo medía contra pagos a tractoristas, lo que daba un saldo confuso/engañoso.
         function actualizarStats() {
-            const totales = calcularTotales();
-
-            // Si emmaDebe es negativo, significa que Emma pagó MÁS de su parte → mostrarlo positivo y verde
+            const bc = calcularBalanceCompleto();
             const emmaEl = document.getElementById('stat-emma');
-            if (totales.emmaDebe < 0) {
-                emmaEl.innerHTML = '✅ Pagado de más:<br>$' + formatearNumero(Math.abs(totales.emmaDebe));
-                emmaEl.style.fontSize = '20px';
-            } else {
-                emmaEl.textContent = '$' + formatearNumero(totales.emmaDebe);
-                emmaEl.style.fontSize = '';
-            }
             const pabloEl = document.getElementById('stat-pablo');
-            if (totales.pabloDebe < 0) {
-                pabloEl.innerHTML = '✅ Pagado de más:<br>$' + formatearNumero(Math.abs(totales.pabloDebe));
-                pabloEl.style.fontSize = '20px';
-            } else {
-                pabloEl.textContent = '$' + formatearNumero(totales.pabloDebe);
-                pabloEl.style.fontSize = '';
-            }
-            document.getElementById('stat-emma-pagado').textContent = '$' + formatearNumero(totales.emmaPagado);
-            document.getElementById('stat-pablo-pagado').textContent = '$' + formatearNumero(totales.pabloPagado);
-            
-            let detalleEmma = '';
-            estado.tractoristas.forEach(t => {
-                const info = calcularPorTractorista(t);
-                if (info.emmaDebe > 0) {
-                    detalleEmma += '• ' + escHtml(t) + ': $' + formatearNumero(info.emmaDebe) + '<br>';
-                }
-            });
-            document.getElementById('stat-emma-detalle').innerHTML = detalleEmma || 'Sin deudas';
+            const balanceEl = document.getElementById('stat-balance');
+            const emmaLabel = document.getElementById('stat-emma-label');
+            const pabloLabel = document.getElementById('stat-pablo-label');
 
-            let detallePablo = '';
+            // bc.diferencia: positivo = Pablo le debe a Emma | negativo = Emma le debe a Pablo | 0 = equilibrados
+            const dif = bc.diferencia;
+            const equilibrado = Math.abs(dif) < 0.01;
+
+            if (equilibrado) {
+                emmaEl.innerHTML = '✅ $0';
+                emmaEl.style.fontSize = '';
+                if (emmaLabel) emmaLabel.textContent = '— Al día';
+                pabloEl.innerHTML = '✅ $0';
+                pabloEl.style.fontSize = '';
+                if (pabloLabel) pabloLabel.textContent = '— Al día';
+                balanceEl.innerHTML = '✅ Equilibrados';
+                balanceEl.style.color = '';
+            } else if (dif > 0) {
+                // Pablo le debe a Emma
+                emmaEl.innerHTML = '✅ A favor:<br>$' + formatearNumero(dif);
+                emmaEl.style.fontSize = '20px';
+                if (emmaLabel) emmaLabel.textContent = '— Puso de más';
+                pabloEl.innerHTML = '💰 A pagar:<br>$' + formatearNumero(dif);
+                pabloEl.style.fontSize = '20px';
+                if (pabloLabel) pabloLabel.textContent = '— Le debe a Emma';
+                balanceEl.innerHTML = '👨‍🌾 Pablo debe<br>$' + formatearNumero(dif);
+            } else {
+                // Emma le debe a Pablo
+                const monto = Math.abs(dif);
+                emmaEl.innerHTML = '💰 A pagar:<br>$' + formatearNumero(monto);
+                emmaEl.style.fontSize = '20px';
+                if (emmaLabel) emmaLabel.textContent = '— Le debe a Pablo';
+                pabloEl.innerHTML = '✅ A favor:<br>$' + formatearNumero(monto);
+                pabloEl.style.fontSize = '20px';
+                if (pabloLabel) pabloLabel.textContent = '— Puso de más';
+                balanceEl.innerHTML = '👩‍🌾 Emma debe<br>$' + formatearNumero(monto);
+            }
+
+            // El campo "Total que puso" sigue siendo claro: cuánto puso cada uno (pagos + gastos)
+            document.getElementById('stat-emma-pagado').textContent = '$' + formatearNumero(bc.emma.totalGastado);
+            document.getElementById('stat-pablo-pagado').textContent = '$' + formatearNumero(bc.pablo.totalGastado);
+
+            // Detalle: cuánto se le adeuda todavía a CADA tractorista (cosa real y útil)
+            // Esto es independiente del balance Emma-Pablo: es lo que falta pagar al exterior.
+            let detalleTractoristas = '';
             estado.tractoristas.forEach(t => {
                 const info = calcularPorTractorista(t);
-                if (info.pabloDebe > 0) {
-                    detallePablo += '• ' + escHtml(t) + ': $' + formatearNumero(info.pabloDebe) + '<br>';
+                if (info.pendiente > 0.01) {
+                    detalleTractoristas += '• ' + escHtml(t) + ': $' + formatearNumero(info.pendiente) + '<br>';
                 }
             });
-            document.getElementById('stat-pablo-detalle').innerHTML = detallePablo || 'Sin deudas';
+            const emmaDetEl = document.getElementById('stat-emma-detalle');
+            const pabloDetEl = document.getElementById('stat-pablo-detalle');
+            if (emmaDetEl) emmaDetEl.innerHTML = '';
+            if (pabloDetEl) pabloDetEl.innerHTML = detalleTractoristas ? '<div style="margin-top:6px;font-size:11px;opacity:0.9;">Falta pagar a tractoristas:<br>' + detalleTractoristas + '</div>' : '';
         }
 
         // ===== FUNCIÓN DE ORDENAMIENTO POR FECHA (descendente: más reciente primero) =====
@@ -2747,6 +2755,10 @@
         }
 
         function renderizarInterno(contenedor) {
+            // v3.8: redireccionar pestañas obsoletas a las nuevas
+            if (tabActual === 'pagos' || tabActual === 'gastos') tabActual = 'movimientos';
+            if (tabActual === 'resumen-general') tabActual = 'balance';
+
             if (tabActual === 'trabajo') {
                 const sinLotes = estado.lotes.length === 0;
                 const sinTractoristas = estado.tractoristas.length === 0;
@@ -3278,12 +3290,62 @@
                 const totalGeneral = totalEmma + totalPablo;
 
                 const f = filtros.movimientos;
+                const tractoristasOpts = estado.tractoristas.map(t => `<option value="${escHtml(t)}">${escHtml(t)}</option>`).join('');
+                const sinTractoristas = estado.tractoristas.length === 0;
+
                 contenedor.innerHTML = `
-                    <h2>📋 Movimientos — vista unificada</h2>
+                    <h2>💸 Movimientos de plata</h2>
                     <p style="color:#666;font-size:14px;margin-bottom:20px;">
-                        Acá ves <b>todos los movimientos juntos</b> en orden cronológico: pagos a tractoristas + gastos generales + pagos entre Emma y Pablo.
-                        Sirve para ver "cuánto puso cada uno hasta el día X" sin saltar entre pestañas.
+                        Acá cargás y consultás <b>todos los movimientos de dinero</b>: pagos a tractoristas, gastos del campo y pagos entre Emma y Pablo. Elegí el tipo y completá.
                     </p>
+
+                    <!-- ===== FORMULARIO UNIFICADO ===== -->
+                    <div class="form-section">
+                        <h3>➕ Nuevo movimiento</h3>
+                        <div class="form-group" style="margin-bottom:15px;">
+                            <label>Tipo de movimiento</label>
+                            <select id="mov-tipo" onchange="actualizarCamposMovimiento()" style="font-weight:bold; font-size:15px;">
+                                <option value="pago-tractorista">💳 Pago a tractorista</option>
+                                <option value="gasto">💰 Gasto general (combustible, repuestos, etc.)</option>
+                                <option value="pago-balance">⚖️ Pago entre Emma y Pablo</option>
+                            </select>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Fecha</label>
+                                <input type="date" id="mov-fecha" value="${new Date().toISOString().split('T')[0]}">
+                            </div>
+                            <div class="form-group">
+                                <label>Quien paga</label>
+                                <select id="mov-pagador">
+                                    <option value="Emma">👩‍🌾 Emma</option>
+                                    <option value="Pablo">👨‍🌾 Pablo</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Monto</label>
+                                <input type="number" id="mov-monto" step="0.01" min="0.01" placeholder="0">
+                            </div>
+                            <!-- Campo específico para Pago Tractorista -->
+                            <div class="form-group" id="mov-campo-tractorista">
+                                <label>Tractorista</label>
+                                <select id="mov-tractorista" ${sinTractoristas ? 'disabled' : ''}>
+                                    ${sinTractoristas ? '<option value="">— Sin tractoristas —</option>' : tractoristasOpts}
+                                </select>
+                            </div>
+                            <!-- Campo específico para Gasto -->
+                            <div class="form-group" id="mov-campo-concepto" style="display:none;">
+                                <label>Concepto</label>
+                                <input type="text" id="mov-concepto" placeholder="Ej: Combustible, Repuestos...">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top:10px;">
+                            <label id="mov-label-detalle">Concepto / detalle (opcional)</label>
+                            <textarea id="mov-detalle" rows="2" placeholder="Detalle del movimiento..."></textarea>
+                        </div>
+                        <button class="btn-success" onclick="agregarMovimiento()" style="margin-top:10px;font-size:15px;">💾 Registrar movimiento</button>
+                    </div>
 
                     <!-- Cards de totales (filtrados) -->
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px;margin-bottom:20px;">
@@ -3323,7 +3385,7 @@
                         <button onclick="limpiarFiltros('movimientos')" style="background:#9e9e9e;color:white;padding:8px 12px;font-size:13px;">Limpiar</button>
                     </div>
 
-                    <!-- Tabla unificada -->
+                    <!-- Tabla unificada con acciones editar/eliminar -->
                     <table>
                         <thead>
                             <tr>
@@ -3332,12 +3394,15 @@
                                 <th>Pagador</th>
                                 <th>Monto</th>
                                 <th>Detalle</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${filtrados.length > 0 ? filtrados.map(m => {
                                 const colorPagador = m.pagador === 'Emma' ? '#ba68c8' : '#64b5f6';
                                 const bgTipo = m.tipo === 'pago-tractorista' ? '#e3f2fd' : (m.tipo === 'gasto' ? '#fff3e0' : '#f3e5f5');
+                                // Mapear el tipo a los data-tipo que entiende el sistema de delegación
+                                const dataTipo = m.tipo === 'pago-tractorista' ? 'pago' : (m.tipo === 'gasto' ? 'gasto' : 'pago-balance');
                                 return `
                                     <tr>
                                         <td>${formatearFecha(m.fecha)}${m.cargadoPor ? '<br><span style="font-size:10px;color:#999;">por ' + escHtml(m.cargadoPor) + '</span>' : ''}</td>
@@ -3345,16 +3410,20 @@
                                         <td><span style="color:${colorPagador};font-weight:bold;">${escHtml(m.pagador || '?')}</span></td>
                                         <td><strong>$${formatearNumero(m.monto)}</strong></td>
                                         <td style="font-size:13px;color:#444;">${escHtml(m.detalle)}</td>
+                                        <td style="white-space:nowrap;">
+                                            <button class="btn-secundario btn-editar" data-tipo="${dataTipo}" data-id="${m.refId}" title="Editar">✏️</button>
+                                            <button class="btn-danger btn-eliminar" data-tipo="${dataTipo}" data-id="${m.refId}" title="Eliminar">🗑️</button>
+                                        </td>
                                     </tr>
                                 `;
-                            }).join('') : '<tr><td colspan="5" style="text-align:center;color:#999;padding:30px;">No hay movimientos que coincidan con los filtros</td></tr>'}
+                            }).join('') : '<tr><td colspan="6" style="text-align:center;color:#999;padding:30px;">No hay movimientos que coincidan con los filtros</td></tr>'}
                         </tbody>
                         ${filtrados.length > 0 ? `
                         <tfoot>
                             <tr style="background:#f5f5f5;font-weight:bold;">
                                 <td colspan="3" style="text-align:right;">TOTAL filtrado:</td>
                                 <td>$${formatearNumero(totalGeneral)}</td>
-                                <td>(Emma: $${formatearNumero(totalEmma)} | Pablo: $${formatearNumero(totalPablo)})</td>
+                                <td colspan="2">(Emma: $${formatearNumero(totalEmma)} | Pablo: $${formatearNumero(totalPablo)})</td>
                             </tr>
                         </tfoot>` : ''}
                     </table>
@@ -3471,61 +3540,98 @@
                         </div>
                     </div>
                     
-                    <div class="form-section" style="margin-top: 30px;">
-                        <h3>Registrar Pago entre Emma y Pablo</h3>
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label>Fecha</label>
-                                <input type="date" id="b-fecha" value="${new Date().toISOString().split('T')[0]}">
+                    <!-- ===== DETALLE POR TRACTORISTA (de Resumen General) ===== -->
+                    <h3 style="color:#2e7d32;margin-bottom:15px;margin-top:35px;">👨‍🌾 Detalle por Tractorista</h3>
+                    ${estado.tractoristas.length === 0 ? '<p style="color:#999;">No hay tractoristas cargados.</p>' : estado.tractoristas.map(tractorista => {
+                        const info = calcularPorTractorista(tractorista);
+                        const trabajosDelTractorista = ordenarPorFecha(activos(estado.trabajos).filter(t => t.tractorista === tractorista));
+                        return `
+                            <div style="background:#e3f2fd;padding:20px;border-radius:12px;margin-bottom:15px;">
+                                <h3 style="color:#1565c0;margin-bottom:15px;font-size:20px;">${escHtml(tractorista)}</h3>
+                                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:15px;margin-bottom:18px;text-align:center;">
+                                    <div>
+                                        <div style="color:#666;font-size:12px;">Trabajado</div>
+                                        <div style="font-size:24px;font-weight:bold;color:#1565c0;">$${formatearNumero(info.trabajado)}</div>
+                                    </div>
+                                    <div>
+                                        <div style="color:#666;font-size:12px;">Pagado</div>
+                                        <div style="font-size:24px;font-weight:bold;color:#4caf50;">$${formatearNumero(info.pagado)}</div>
+                                    </div>
+                                    <div>
+                                        <div style="color:#666;font-size:12px;">Pendiente</div>
+                                        <div style="font-size:24px;font-weight:bold;color:${info.pendiente > 0 ? '#f44336' : (info.pendiente < 0 ? '#ff9800' : '#4caf50')};">$${formatearNumero(info.pendiente)}</div>
+                                    </div>
+                                </div>
+                                ${trabajosDelTractorista.length > 0 ? `
+                                    <details style="background:white;padding:12px;border-radius:8px;">
+                                        <summary style="cursor:pointer;color:#333;font-weight:600;">Ver trabajos realizados (${trabajosDelTractorista.length})</summary>
+                                        <div style="margin-top:10px;">
+                                            ${trabajosDelTractorista.map(t => {
+                                                const monto = t.actividad === 'Otra actividad' ? t.precio : (t.cantidad * t.precio);
+                                                return `<div style="padding:6px 0;border-bottom:1px solid #eee;font-size:13px;">
+                                                    ${formatearFecha(t.fecha)} — ${escHtml(t.lote)} — ${escHtml(t.actividad)} — ${t.actividad === 'Otra actividad' ? '-' : escHtml(String(t.cantidad)) + (t.actividad === 'Rollos' ? ' rollos' : ' ha')} = $${formatearNumero(monto)}
+                                                </div>`;
+                                            }).join('')}
+                                        </div>
+                                    </details>
+                                ` : '<div style="color:#999;font-size:13px;">Sin trabajos registrados.</div>'}
                             </div>
-                            <div class="form-group">
-                                <label>Quien paga</label>
-                                <select id="b-pagador">
-                                    <option>Emma</option>
-                                    <option>Pablo</option>
-                                </select>
+                        `;
+                    }).join('')}
+
+                    <!-- ===== TOTALES GENERALES (de Resumen General) ===== -->
+                    <h3 style="color:#2e7d32;margin-bottom:15px;margin-top:30px;">📊 Totales Generales</h3>
+                    ${(() => {
+                        const totales = calcularTotales();
+                        const resumen = calcularResumenGeneral();
+                        return `
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;">
+                            <div style="background:linear-gradient(135deg,#81c784 0%,#66bb6a 100%);color:white;padding:18px;border-radius:10px;text-align:center;">
+                                <div style="font-size:13px;opacity:0.9;">Hectáreas trabajadas</div>
+                                <div style="font-size:30px;font-weight:bold;">${resumen.totalHectareas}</div>
                             </div>
-                            <div class="form-group">
-                                <label>Monto</label>
-                                <input type="number" id="b-monto" step="0.01" required min="0.01">
+                            <div style="background:linear-gradient(135deg,#64b5f6 0%,#42a5f5 100%);color:white;padding:18px;border-radius:10px;text-align:center;">
+                                <div style="font-size:13px;opacity:0.9;">Rollos realizados</div>
+                                <div style="font-size:30px;font-weight:bold;">${resumen.totalRollos}</div>
+                            </div>
+                            <div style="background:linear-gradient(135deg,#ba68c8 0%,#ab47bc 100%);color:white;padding:18px;border-radius:10px;text-align:center;">
+                                <div style="font-size:13px;opacity:0.9;">Total trabajado</div>
+                                <div style="font-size:30px;font-weight:bold;">$${formatearNumero(resumen.totalDinero)}</div>
+                            </div>
+                            <div style="background:linear-gradient(135deg,#4db6ac 0%,#26a69a 100%);color:white;padding:18px;border-radius:10px;text-align:center;">
+                                <div style="font-size:13px;opacity:0.9;">Total pagado</div>
+                                <div style="font-size:30px;font-weight:bold;">$${formatearNumero(resumen.totalPagado)}</div>
                             </div>
                         </div>
-                        <div class="form-group" style="margin-top: 10px;">
-                            <label>Concepto (opcional)</label>
-                            <textarea id="b-concepto" rows="2" placeholder="Detalle del pago..."></textarea>
-                        </div>
-                        <button class="btn-success" onclick="agregarPagoBalance()">💰 Registrar Pago</button>
-                    </div>
-                    
-                    <h3 style="margin-top: 30px;">Historial de Pagos Emma-Pablo</h3>
-                    ${renderFiltrosUI('balance')}
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Quien pagó</th>
-                                <th>A quien</th>
-                                <th>Monto</th>
-                                <th>Concepto</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${ordenarPorFecha(filtrarRegistros(activos(estado.pagosEntreEmmaYPablo), 'balance')).map(p => `
+                        <table>
+                            <thead>
                                 <tr>
-                                    <td>${formatearFecha(p.fecha)}${p.cargadoPor ? '<br><span style="font-size:10px;color:#999;">por ' + escHtml(p.cargadoPor) + '</span>' : ''}</td>
-                                    <td><span style="color: ${p.pagador === 'Emma' ? '#ba68c8' : '#64b5f6'}; font-weight: bold;">${escHtml(p.pagador)}</span></td>
-                                    <td><span style="color: ${p.pagador === 'Emma' ? '#64b5f6' : '#ba68c8'}; font-weight: bold;">${p.pagador === 'Emma' ? 'Pablo' : 'Emma'}</span></td>
-                                    <td>$${formatearNumero(p.monto)}</td>
-                                    <td style="font-size: 12px; color: #666;">${escHtml(p.concepto) || '-'}</td>
-                                    <td style="white-space:nowrap;">
-                                        <button class="btn-secundario btn-editar" data-tipo="pago-balance" data-id="${p.id}" title="Editar">✏️</button>
-                                        <button class="btn-danger btn-eliminar" data-tipo="pago-balance" data-id="${p.id}" title="Eliminar">🗑️</button>
-                                    </td>
+                                    <th>Actividad</th>
+                                    <th>Cantidad</th>
+                                    <th>Monto Total</th>
                                 </tr>
-                            `).join('') || '<tr><td colspan="6" style="text-align:center;">No hay pagos que coincidan</td></tr>'}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                ${Object.entries(resumen.porActividad).map(([actividad, datos]) => `
+                                    <tr>
+                                        <td><strong>${escHtml(actividad)}</strong></td>
+                                        <td>${actividad === 'Otra actividad' ? '-' : escHtml(String(datos.cantidad))}</td>
+                                        <td>$${formatearNumero(datos.monto)}</td>
+                                    </tr>
+                                `).join('')}
+                                <tr style="background:#f5f5f5;font-weight:bold;">
+                                    <td>TOTAL</td>
+                                    <td>-</td>
+                                    <td>$${formatearNumero(resumen.totalDinero)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        `;
+                    })()}
+
+                    <div style="background:#f1f8e9;border:1px solid #c8e6c9;padding:12px;border-radius:8px;margin-top:20px;font-size:13px;color:#558b2f;">
+                        💡 <strong>Tip:</strong> Para cargar un pago entre Emma y Pablo, andá a la pestaña <b>💸 Movimientos</b> y elegí tipo "Pago entre Emma y Pablo".
+                    </div>
                 `;
             } else if (tabActual === 'dashboard') {
                 const resumen = calcularResumenGeneral();
@@ -3955,6 +4061,92 @@
                 document.getElementById('calc-resultado').innerHTML = `🌾 ${ha} hectáreas`;
             } else {
                 document.getElementById('calc-resultado').innerHTML = '⚠️ Ingrese valores';
+            }
+        }
+
+        // ===== FORM UNIFICADO DE MOVIMIENTOS (v3.8) =====
+        // Mostrar/ocultar campos según el tipo de movimiento seleccionado
+        function actualizarCamposMovimiento() {
+            const tipo = document.getElementById('mov-tipo').value;
+            const campoTrac = document.getElementById('mov-campo-tractorista');
+            const campoConcepto = document.getElementById('mov-campo-concepto');
+            const labelDetalle = document.getElementById('mov-label-detalle');
+            const pagadorSel = document.getElementById('mov-pagador');
+            if (!campoTrac || !campoConcepto) return;
+
+            if (tipo === 'pago-tractorista') {
+                campoTrac.style.display = '';
+                campoConcepto.style.display = 'none';
+                if (labelDetalle) labelDetalle.textContent = 'Concepto / nota (opcional)';
+                if (pagadorSel) pagadorSel.title = 'Quién le pagó al tractorista';
+            } else if (tipo === 'gasto') {
+                campoTrac.style.display = 'none';
+                campoConcepto.style.display = '';
+                if (labelDetalle) labelDetalle.textContent = 'Detalle (opcional)';
+                if (pagadorSel) pagadorSel.title = 'Quién pagó el gasto';
+            } else if (tipo === 'pago-balance') {
+                campoTrac.style.display = 'none';
+                campoConcepto.style.display = 'none';
+                if (labelDetalle) labelDetalle.textContent = 'Concepto (opcional)';
+                if (pagadorSel) pagadorSel.title = 'Quién le pagó al otro socio';
+            }
+        }
+
+        // Función unificada: dispatcha al agregar* correcto según el tipo
+        async function agregarMovimiento() {
+            const tipoSel = document.getElementById('mov-tipo');
+            if (!tipoSel) return;
+            const tipo = tipoSel.value;
+            const fecha = document.getElementById('mov-fecha').value;
+            const pagador = document.getElementById('mov-pagador').value;
+            const monto = parseFloat(document.getElementById('mov-monto').value);
+            const detalle = (document.getElementById('mov-detalle').value || '').trim();
+
+            if (!fecha) { showToast('Ingresá una fecha', 'warning'); return; }
+            if (isNaN(monto) || monto <= 0) { showToast('Ingresá un monto mayor a 0', 'warning'); return; }
+
+            if (tipo === 'pago-tractorista') {
+                if (estado.tractoristas.length === 0) { showToast('Primero agregá un tractorista en Config', 'warning'); return; }
+                const tractorista = document.getElementById('mov-tractorista').value;
+                if (!tractorista) { showToast('Seleccioná un tractorista', 'warning'); return; }
+                const id = Date.now();
+                estado.pagosTractoristas.push({
+                    id, fecha, tractorista, pagador, monto,
+                    concepto: detalle,
+                    cargadoPor: obtenerUsuarioActivo(), creadoEn: id
+                });
+                await guardar();
+                document.getElementById('mov-monto').value = '';
+                document.getElementById('mov-detalle').value = '';
+                renderizar();
+                showToast('Pago a tractorista registrado', 'success', 2000);
+            } else if (tipo === 'gasto') {
+                const concepto = (document.getElementById('mov-concepto').value || '').trim();
+                if (!concepto) { showToast('Ingresá un concepto', 'warning'); return; }
+                const id = Date.now();
+                estado.gastosGenerales.push({
+                    id, fecha, concepto, pagador, monto,
+                    detalle,
+                    cargadoPor: obtenerUsuarioActivo(), creadoEn: id
+                });
+                await guardar();
+                document.getElementById('mov-monto').value = '';
+                document.getElementById('mov-concepto').value = '';
+                document.getElementById('mov-detalle').value = '';
+                renderizar();
+                showToast('Gasto registrado', 'success', 2000);
+            } else if (tipo === 'pago-balance') {
+                const id = Date.now();
+                estado.pagosEntreEmmaYPablo.push({
+                    id, fecha, pagador, monto,
+                    concepto: detalle,
+                    cargadoPor: obtenerUsuarioActivo(), creadoEn: id
+                });
+                await guardar();
+                document.getElementById('mov-monto').value = '';
+                document.getElementById('mov-detalle').value = '';
+                renderizar();
+                showToast('Pago entre Emma y Pablo registrado', 'success', 2000);
             }
         }
 
@@ -4893,4 +5085,34 @@ window.onload = async function() {
                     console.log('Service Worker: Activando...');
                     event.waitUntil(
                         caches.keys().then(names =>
-                            Promise.all(names.filter(n => n !== CACHE_NAME).map(n => caches.delete(
+                            Promise.all(names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n)))
+                        ).then(() => self.clients.claim())
+                    );
+                });
+
+                self.addEventListener('fetch', (event) => {
+                    if (event.request.method !== 'GET') return;
+                    // No interceptar las llamadas a Firestore (necesitan ir en vivo o usar la cache propia de Firebase)
+                    if (event.request.url.includes('firestore.googleapis.com')) return;
+
+                    event.respondWith(
+                        caches.open(CACHE_NAME).then((cache) => {
+                            return cache.match(event.request).then((cachedResponse) => {
+                                const fetchPromise = fetch(event.request).then((networkResponse) => {
+                                    if (networkResponse && networkResponse.status === 200) {
+                                        cache.put(event.request, networkResponse.clone());
+                                    }
+                                    return networkResponse;
+                                }).catch(() => cachedResponse);
+
+                                return cachedResponse || fetchPromise;
+                            });
+                        })
+                    );
+                });
+            `)).then(() => {
+                console.log('✅ Service Worker registrado');
+            }).catch(err => {
+                console.log('⚠️ Service Worker no disponible:', err);
+            });
+        } else if (window.location.pr
