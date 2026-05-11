@@ -2138,29 +2138,51 @@
             });
         }
         
-        // Detección de pérdida de datos
+        // Detección de pérdida de datos.
+        // Mejora v3.7: si el usuario dice "No, dejar así", recordamos esa decisión y no
+        // volvemos a preguntar para esa misma versión histórica. Solo volveríamos a preguntar
+        // si aparece una versión MÁS RECIENTE con más datos.
+        const PERDIDA_DESCARTADA_KEY = 'mundoverde_perdida_descartada';
         async function detectarPerdidaDatos(datosActuales) {
             try {
                 const ultimaVersion = await obtenerUltimaVersionGuardada();
-                
+
                 if (!ultimaVersion) {
                     console.log('ℹ️ Primera vez usando el sistema');
                     return false;
                 }
-                
+
+                // ¿Ya descartamos antes este aviso para esta versión exacta?
+                // Comparamos timestamp de la versión + cantidades para asegurarnos de que es la misma.
+                const descartadoRaw = localStorage.getItem(PERDIDA_DESCARTADA_KEY);
+                if (descartadoRaw) {
+                    try {
+                        const descartado = JSON.parse(descartadoRaw);
+                        if (descartado.timestamp === ultimaVersion.timestamp &&
+                            descartado.cantidadTrabajos === ultimaVersion.cantidadTrabajos &&
+                            descartado.cantidadPagos === ultimaVersion.cantidadPagos &&
+                            descartado.cantidadGastos === ultimaVersion.cantidadGastos) {
+                            console.log('ℹ️ Aviso de pérdida ya descartado por el usuario, no volver a mostrar');
+                            return false;
+                        }
+                    } catch (e) {
+                        // Si está corrupto, lo ignoramos y seguimos
+                    }
+                }
+
                 const trabajosActuales = datosActuales.trabajos?.length || 0;
                 const pagosActuales = datosActuales.pagosTractoristas?.length || 0;
                 const gastosActuales = datosActuales.gastosGenerales?.length || 0;
-                
+
                 const trabajosAnteriores = ultimaVersion.cantidadTrabajos || 0;
                 const pagosAnteriores = ultimaVersion.cantidadPagos || 0;
                 const gastosAnteriores = ultimaVersion.cantidadGastos || 0;
-                
+
                 // Detectar pérdida significativa (más del 50% de los datos)
                 const perdidaTrabajos = trabajosAnteriores > 0 && trabajosActuales < (trabajosAnteriores * 0.5);
                 const perdidaPagos = pagosAnteriores > 0 && pagosActuales < (pagosAnteriores * 0.5);
                 const perdidaGastos = gastosAnteriores > 0 && gastosActuales < (gastosAnteriores * 0.5);
-                
+
                 if (perdidaTrabajos || perdidaPagos || perdidaGastos) {
                     const mensaje = '⚠️ Se detectó una posible pérdida de datos.\n\n' +
                         'Datos anteriores (' + ultimaVersion.fecha + '):\n' +
@@ -2181,11 +2203,23 @@
                     });
 
                     if (restaurar) {
+                        // Si restauró, limpiar el flag de descartado
+                        localStorage.removeItem(PERDIDA_DESCARTADA_KEY);
                         await restaurarVersion(ultimaVersion.fecha);
                         return true;
+                    } else {
+                        // Si dijo "No, dejar así": recordar esta decisión para no molestar de nuevo
+                        localStorage.setItem(PERDIDA_DESCARTADA_KEY, JSON.stringify({
+                            timestamp: ultimaVersion.timestamp,
+                            cantidadTrabajos: ultimaVersion.cantidadTrabajos,
+                            cantidadPagos: ultimaVersion.cantidadPagos,
+                            cantidadGastos: ultimaVersion.cantidadGastos,
+                            descartadoEn: Date.now()
+                        }));
+                        console.log('ℹ️ Aviso descartado por el usuario, no volverá a aparecer para esta versión');
                     }
                 }
-                
+
                 return false;
             } catch (error) {
                 console.error('❌ Error al detectar pérdida de datos:', error);
