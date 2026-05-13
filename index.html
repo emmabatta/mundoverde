@@ -27,16 +27,27 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         h1 { color: #2e7d32; margin-bottom: 20px; }
+        /* v3.11.2: 4 cards en fila + botones Excel debajo, todos del mismo tamaño */
         .stats {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            grid-template-columns: repeat(4, 1fr);
             gap: 12px;
             margin-top: 18px;
         }
+        .stats-buttons-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 12px;
+        }
         .stat-card {
-            padding: 14px 16px;
+            padding: 12px 14px;
             border-radius: 10px;
             color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 90px;
         }
         .stat-card.purple { background: linear-gradient(135deg, #9575CD 0%, #7E57C2 100%); }
         .stat-card.blue { background: linear-gradient(135deg, #90caf9 0%, #64b5f6 100%); }
@@ -45,73 +56,9 @@
         .stat-value { font-size: 22px; font-weight: bold; margin: 4px 0; }
         .stat-detail { font-size: 11px; opacity: 0.9; margin-top: 6px; }
 
-        /* === Tarjeta de Pendientes a Tractoristas (v3.11.1 — compacta y armonizada) === */
-        .pendientes-card {
-            background: linear-gradient(135deg, #FFB74D 0%, #FB8C00 100%);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 8px;
-            margin-top: 10px;
-        }
-        .pendientes-card.empty {
-            background: linear-gradient(135deg, #A5D6A7 0%, #66BB6A 100%);
-            padding: 6px 12px;
-            font-size: 12px;
-        }
-        .pendientes-title {
-            font-size: 12px;
-            font-weight: 600;
-            margin-bottom: 5px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 8px;
-        }
-        .pendientes-title .pendientes-counter {
-            font-size: 10px;
-            opacity: 0.85;
-            font-weight: 400;
-            white-space: nowrap;
-        }
-        .pendientes-lista {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-            gap: 4px;
-            margin-bottom: 5px;
-        }
-        .pendiente-item {
-            background: rgba(255,255,255,0.92);
-            color: #5D4037;
-            padding: 4px 8px;
-            border-radius: 5px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 6px;
-        }
-        .pendiente-item .nombre {
-            font-size: 11px;
-            color: #6D4C41;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .pendiente-item .monto {
-            font-size: 13px;
-            font-weight: bold;
-            color: #3E2723;
-            white-space: nowrap;
-        }
-        .pendientes-total {
-            border-top: 1px dashed rgba(255,255,255,0.5);
-            padding-top: 4px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        .pendientes-total .monto-total { font-size: 15px; }
+        /* === Stat-card de tractoristas (v3.11.2 — compacta como las demás) === */
+        .stat-card.orange { background: linear-gradient(135deg, #FFB74D 0%, #FB8C00 100%); }
+        .stat-card.orange-ok { background: linear-gradient(135deg, #A5D6A7 0%, #66BB6A 100%); }
         .tabs {
             background: white;
             border-radius: 15px;
@@ -462,9 +409,11 @@
             h1 { font-size: 22px; margin-bottom: 15px; }
             h2 { font-size: 20px; }
             h3 { font-size: 16px; }
-            .stats { grid-template-columns: 1fr; gap: 10px; }
-            .stat-card { padding: 15px; }
-            .stat-value { font-size: 24px; }
+            /* v3.11.2: en móvil/tablet, 2 cards por fila para que quede legible */
+            .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+            .stats-buttons-row { grid-template-columns: 1fr; gap: 8px; }
+            .stat-card { padding: 10px 12px; min-height: 70px; }
+            .stat-value { font-size: 18px; }
             .excel-buttons {
                 flex-direction: column;
                 gap: 8px;
@@ -615,22 +564,26 @@
                     <div>Estado de cuenta</div>
                     <div class="stat-value" id="stat-balance" style="font-size:20px;">Equilibrado ✅</div>
                 </div>
-                <div class="excel-buttons">
-                    <button class="btn-export" onclick="exportarATodo()" title="Exportar todo a Excel con formato">
-                        📥 Exportar Excel
-                    </button>
-                    <button class="btn-import" onclick="importarDesdeExcel()" title="Importar datos desde Excel">
-                        📤 Importar Excel
-                    </button>
-                    <button class="btn-restore" onclick="mostrarPanelRestauracion()" title="Restaurar versión anterior" style="background: #ff9800; color: white;">
-                        🔄 Restaurar
-                    </button>
+                <!-- v3.11.2: Tractoristas como 4ta card en la fila principal -->
+                <div class="stat-card orange" id="stat-tractoristas-card">
+                    <div>💰 A pagar a tractoristas</div>
+                    <div class="stat-value" id="stat-tractoristas">$0</div>
+                    <div class="stat-detail" id="stat-tractoristas-sub">Sin pendientes</div>
                 </div>
-
             </div>
 
-            <!-- v3.11: Tarjeta de pendientes a tractoristas -->
-            <div id="pendientes-tractoristas-container"></div>
+            <!-- Botones Excel en su propia fila -->
+            <div class="stats-buttons-row">
+                <button class="btn-export" onclick="exportarATodo()" title="Exportar todo a Excel con formato">
+                    📥 Exportar Excel
+                </button>
+                <button class="btn-import" onclick="importarDesdeExcel()" title="Importar datos desde Excel">
+                    📤 Importar Excel
+                </button>
+                <button class="btn-restore" onclick="mostrarPanelRestauracion()" title="Restaurar versión anterior" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); color: white;">
+                    🔄 Restaurar
+                </button>
+            </div>
         </div>
 
         <div class="tabs">
@@ -2681,47 +2634,50 @@
 
         // v3.8: actualizarStats ahora usa el balance COMPLETO (incluye pagos Emma-Pablo y gastos).
         // Antes solo medía contra pagos a tractoristas, lo que daba un saldo confuso/engañoso.
-        // v3.11: Tarjeta de pendientes a tractoristas (en el header, visible siempre)
+        // v3.11.2: Stat-card de tractoristas pendientes (parte de las 4 cards principales)
         function renderPendientesTractoristas() {
-            const cont = document.getElementById('pendientes-tractoristas-container');
-            if (!cont) return;
-            // Buscar tractoristas con saldo pendiente > 0
+            const card = document.getElementById('stat-tractoristas-card');
+            const valor = document.getElementById('stat-tractoristas');
+            const sub = document.getElementById('stat-tractoristas-sub');
+            if (!card || !valor || !sub) return;
+
+            // Tractoristas con saldo pendiente > 0
             const pendientes = estado.tractoristas.map(t => {
                 const info = calcularPorTractorista(t);
                 return { nombre: t, pendiente: info.pendiente };
             }).filter(t => t.pendiente > 0.01);
 
             if (pendientes.length === 0) {
-                // Si están todos al día, mostrar mensaje verde compacto
-                const totalTractoristas = estado.tractoristas.length;
-                if (totalTractoristas === 0) {
-                    cont.innerHTML = '';
+                // Todos al día → card verde
+                card.classList.remove('orange');
+                card.classList.add('orange-ok');
+                if (estado.tractoristas.length === 0) {
+                    valor.innerHTML = '—';
+                    valor.style.fontSize = '22px';
+                    sub.textContent = 'No hay tractoristas cargados';
                 } else {
-                    cont.innerHTML = '<div class="pendientes-card empty"><div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;">✅ Todos los tractoristas están al día</div></div>';
+                    valor.innerHTML = '✅ Al día';
+                    valor.style.fontSize = '18px';
+                    sub.textContent = 'Todos los tractoristas cobrados';
                 }
                 return;
             }
 
-            const totalPendiente = pendientes.reduce((s, t) => s + t.pendiente, 0);
-            const itemsHTML = pendientes.map(t =>
-                '<div class="pendiente-item">' +
-                '<span class="nombre">👷 ' + escHtml(t.nombre) + '</span>' +
-                '<span class="monto">$' + formatearNumero(t.pendiente) + '</span>' +
-                '</div>'
-            ).join('');
+            // Hay pendientes → card naranja
+            card.classList.remove('orange-ok');
+            card.classList.add('orange');
+            const total = pendientes.reduce((s, t) => s + t.pendiente, 0);
+            valor.innerHTML = '$' + formatearNumero(total);
+            valor.style.fontSize = '22px';
 
-            cont.innerHTML =
-                '<div class="pendientes-card">' +
-                '<div class="pendientes-title">' +
-                '<span>💰 A pagar a tractoristas</span>' +
-                '<span class="pendientes-counter">' + pendientes.length + ' pendiente' + (pendientes.length === 1 ? '' : 's') + '</span>' +
-                '</div>' +
-                '<div class="pendientes-lista">' + itemsHTML + '</div>' +
-                '<div class="pendientes-total">' +
-                '<span>Total</span>' +
-                '<span class="monto-total">$' + formatearNumero(totalPendiente) + '</span>' +
-                '</div>' +
-                '</div>';
+            // Subtítulo: si es uno solo, mostrar nombre. Si son varios, contador + primer nombre.
+            if (pendientes.length === 1) {
+                sub.textContent = '1 pendiente — ' + pendientes[0].nombre;
+            } else {
+                const nombres = pendientes.map(p => p.nombre).join(', ');
+                // Si los nombres caben, listarlos. Si no, mostrar contador.
+                sub.textContent = pendientes.length + ' pendientes — ' + nombres;
+            }
         }
 
         function actualizarStats() {
