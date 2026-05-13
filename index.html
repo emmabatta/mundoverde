@@ -45,50 +45,73 @@
         .stat-value { font-size: 22px; font-weight: bold; margin: 4px 0; }
         .stat-detail { font-size: 11px; opacity: 0.9; margin-top: 6px; }
 
-        /* === Tarjeta de Pendientes a Tractoristas (v3.11) === */
+        /* === Tarjeta de Pendientes a Tractoristas (v3.11.1 — compacta y armonizada) === */
         .pendientes-card {
             background: linear-gradient(135deg, #FFB74D 0%, #FB8C00 100%);
             color: white;
-            padding: 12px 16px;
-            border-radius: 10px;
-            margin-top: 12px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-top: 10px;
         }
         .pendientes-card.empty {
             background: linear-gradient(135deg, #A5D6A7 0%, #66BB6A 100%);
-            padding: 10px 16px;
+            padding: 6px 12px;
+            font-size: 12px;
         }
         .pendientes-title {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
-            margin-bottom: 8px;
+            margin-bottom: 5px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 8px;
+        }
+        .pendientes-title .pendientes-counter {
+            font-size: 10px;
+            opacity: 0.85;
+            font-weight: 400;
+            white-space: nowrap;
         }
         .pendientes-lista {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 6px;
-            margin-bottom: 8px;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 4px;
+            margin-bottom: 5px;
         }
         .pendiente-item {
-            background: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.92);
             color: #5D4037;
-            padding: 6px 10px;
-            border-radius: 6px;
+            padding: 4px 8px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
         }
-        .pendiente-item .nombre { font-size: 11px; color: #6D4C41; }
-        .pendiente-item .monto { font-size: 16px; font-weight: bold; color: #3E2723; }
+        .pendiente-item .nombre {
+            font-size: 11px;
+            color: #6D4C41;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pendiente-item .monto {
+            font-size: 13px;
+            font-weight: bold;
+            color: #3E2723;
+            white-space: nowrap;
+        }
         .pendientes-total {
             border-top: 1px dashed rgba(255,255,255,0.5);
-            padding-top: 6px;
+            padding-top: 4px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
         }
-        .pendientes-total .monto-total { font-size: 18px; }
+        .pendientes-total .monto-total { font-size: 15px; }
         .tabs {
             background: white;
             border-radius: 15px;
@@ -2682,8 +2705,8 @@
             const totalPendiente = pendientes.reduce((s, t) => s + t.pendiente, 0);
             const itemsHTML = pendientes.map(t =>
                 '<div class="pendiente-item">' +
-                '<div class="nombre">👷 ' + escHtml(t.nombre) + '</div>' +
-                '<div class="monto">$' + formatearNumero(t.pendiente) + '</div>' +
+                '<span class="nombre">👷 ' + escHtml(t.nombre) + '</span>' +
+                '<span class="monto">$' + formatearNumero(t.pendiente) + '</span>' +
                 '</div>'
             ).join('');
 
@@ -2691,11 +2714,11 @@
                 '<div class="pendientes-card">' +
                 '<div class="pendientes-title">' +
                 '<span>💰 A pagar a tractoristas</span>' +
-                '<span style="font-size:11px;opacity:0.9;font-weight:400;">' + pendientes.length + ' tractorista' + (pendientes.length === 1 ? '' : 's') + ' con saldo pendiente</span>' +
+                '<span class="pendientes-counter">' + pendientes.length + ' pendiente' + (pendientes.length === 1 ? '' : 's') + '</span>' +
                 '</div>' +
                 '<div class="pendientes-lista">' + itemsHTML + '</div>' +
                 '<div class="pendientes-total">' +
-                '<span>Total pendiente</span>' +
+                '<span>Total</span>' +
                 '<span class="monto-total">$' + formatearNumero(totalPendiente) + '</span>' +
                 '</div>' +
                 '</div>';
