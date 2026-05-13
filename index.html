@@ -22,7 +22,7 @@
         .header {
             background: white;
             border-radius: 15px;
-            padding: 25px;
+            padding: 20px;
             margin-bottom: 20px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
@@ -31,14 +31,14 @@
         .stats {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
-            margin-top: 18px;
+            gap: 10px;
+            margin-top: 16px;
         }
         .stats-buttons-row {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            margin-top: 12px;
+            gap: 10px;
+            margin-top: 10px;
         }
         .stat-card {
             padding: 12px 14px;
@@ -134,8 +134,9 @@
             border: 2px solid #e0e0e0;
             margin-bottom: 15px;
         }
-        .btn-export {
-            background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%);
+        /* v3.13: los 3 botones (Exportar/Importar/Restaurar) en mismo verde claro */
+        .btn-export, .btn-import, .btn-restore {
+            background: linear-gradient(135deg, #81c784 0%, #66bb6a 100%);
             color: white;
             padding: 12px 20px;
             border-radius: 8px;
@@ -146,38 +147,15 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.2);
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
-            margin: 0 5px;
         }
-        .btn-export:hover {
-            background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
+        .btn-export:hover, .btn-import:hover, .btn-restore:hover {
+            background: linear-gradient(135deg, #66bb6a 0%, #4caf50 100%);
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
         }
-        .btn-import {
-            background: linear-gradient(135deg, #1976d2 0%, #0d47a1 100%);
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            border: none;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            margin: 0 5px;
-        }
-        .btn-import:hover {
-            background: linear-gradient(135deg, #0d47a1 0%, #01579b 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
-        }
-        .btn-import:active {
-            transform: translateY(0);
-        }
-        .btn-export:active {
+        .btn-export:active, .btn-import:active, .btn-restore:active {
             transform: translateY(0);
         }
         .excel-buttons {
@@ -560,7 +538,7 @@
                         <div id="stat-pablo-detalle"></div>
                     </div>
                 </div>
-                <div class="stat-card green">
+                <div class="stat-card green" id="stat-balance-card">
                     <div>Estado de cuenta</div>
                     <div class="stat-value" id="stat-balance" style="font-size:20px;">Equilibrado ✅</div>
                 </div>
@@ -580,7 +558,7 @@
                 <button class="btn-import" onclick="importarDesdeExcel()" title="Importar datos desde Excel">
                     📤 Importar Excel
                 </button>
-                <button class="btn-restore" onclick="mostrarPanelRestauracion()" title="Restaurar versión anterior" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); color: white;">
+                <button class="btn-restore" onclick="mostrarPanelRestauracion()" title="Restaurar versión anterior">
                     🔄 Restaurar
                 </button>
             </div>
@@ -2685,12 +2663,24 @@
             const emmaEl = document.getElementById('stat-emma');
             const pabloEl = document.getElementById('stat-pablo');
             const balanceEl = document.getElementById('stat-balance');
+            const balanceCard = document.getElementById('stat-balance-card');
             const emmaLabel = document.getElementById('stat-emma-label');
             const pabloLabel = document.getElementById('stat-pablo-label');
 
             // bc.diferencia: positivo = Pablo le debe a Emma | negativo = Emma le debe a Pablo | 0 = equilibrados
             const dif = bc.diferencia;
             const equilibrado = Math.abs(dif) < 0.01;
+
+            // v3.13: Card de Estado cambia entre verde (equilibrado) y naranja (con deuda)
+            if (balanceCard) {
+                if (equilibrado) {
+                    balanceCard.classList.remove('orange');
+                    balanceCard.classList.add('green');
+                } else {
+                    balanceCard.classList.remove('green');
+                    balanceCard.classList.add('orange');
+                }
+            }
 
             if (equilibrado) {
                 emmaEl.innerHTML = '✅ $0';
