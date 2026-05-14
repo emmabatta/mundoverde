@@ -1640,28 +1640,33 @@
             );
             if (!ok) return;
 
-            // Cambiamos a la pestaña de Balance Emma-Pablo y precargamos el formulario
-            tabActual = 'balance';
+            // v3.13: ir a la pestaña Movimientos y precargar el formulario unificado
+            // con tipo "Pago entre Emma y Pablo"
+            tabActual = 'movimientos';
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            const tabBtn = document.querySelector('.tab[data-tab="balance"]');
+            const tabBtn = document.querySelector('.tab[data-tab="movimientos"]');
             if (tabBtn) tabBtn.classList.add('active');
             renderizar();
 
-            // Esperar un tick para que el DOM exista
             setTimeout(() => {
-                const fechaInput = document.getElementById('b-fecha');
-                const pagadorInput = document.getElementById('b-pagador');
-                const montoInput = document.getElementById('b-monto');
-                const conceptoInput = document.getElementById('b-concepto');
+                const tipoSel = document.getElementById('mov-tipo');
+                const fechaInput = document.getElementById('mov-fecha');
+                const pagadorInput = document.getElementById('mov-pagador');
+                const montoInput = document.getElementById('mov-monto');
+                const detalleInput = document.getElementById('mov-detalle');
+                if (tipoSel) {
+                    tipoSel.value = 'pago-balance';
+                    actualizarCamposMovimiento();
+                }
                 if (fechaInput) fechaInput.value = new Date().toISOString().split('T')[0];
                 if (pagadorInput) pagadorInput.value = quienPaga;
                 if (montoInput) montoInput.value = monto.toFixed(2);
-                if (conceptoInput) conceptoInput.value = 'Equilibrio de cuentas (auto)';
+                if (detalleInput) detalleInput.value = 'Equilibrio de cuentas (auto)';
                 if (montoInput) {
                     montoInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     montoInput.focus();
                 }
-                showToast('Formulario precargado. Revisá el monto y dale "Registrar Pago" para confirmar', 'info', 5000);
+                showToast('Formulario precargado en Movimientos. Revisá y dale "Registrar movimiento"', 'info', 5000);
             }, 200);
         }
 
