@@ -1699,6 +1699,13 @@
         function guardarUsuarioActivo(nombre) {
             localStorage.setItem(PIN_USER_KEY, nombre);
         }
+        // v3.15: solo el usuario que cargó un registro puede modificarlo/borrarlo.
+        // Si el registro no tiene cargadoPor (datos viejos), se permite a cualquiera.
+        function puedeModificar(registro) {
+            if (!registro) return false;
+            if (!registro.cargadoPor) return true; // registros legacy sin dueño
+            return registro.cargadoPor === obtenerUsuarioActivo();
+        }
         function inicializarSelectorUsuario() {
             const sel = document.getElementById('usuario-activo');
             if (!sel) return;
@@ -2928,8 +2935,7 @@
                                     <td>$${formatearNumero(t.actividad === 'Otra actividad' ? t.precio : (t.cantidad * t.precio))}</td>
                                     <td style="font-size: 12px; color: #666;">${escHtml(t.notas) || '-'}</td>
                                     <td style="white-space:nowrap;">
-                                        <button class="btn-secundario btn-editar" data-tipo="trabajo" data-id="${t.id}" title="Editar">✏️</button>
-                                        <button class="btn-danger btn-eliminar" data-tipo="trabajo" data-id="${t.id}" title="Eliminar">🗑️</button>
+                                        ${puedeModificar(t) ? '<button class="btn-secundario btn-editar" data-tipo="trabajo" data-id="' + t.id + '" title="Editar">✏️</button><button class="btn-danger btn-eliminar" data-tipo="trabajo" data-id="' + t.id + '" title="Eliminar">🗑️</button>' : '<span style="color:#aaa;font-size:11px;" title="Solo ' + escHtml(t.cargadoPor || '?') + ' puede editar/borrar">🔒 ' + escHtml(t.cargadoPor || '?') + '</span>'}
                                     </td>
                                 </tr>
                             `).join('') || '<tr><td colspan="8" style="text-align:center;">No hay trabajos que coincidan</td></tr>'}
@@ -3494,8 +3500,7 @@
                                         <td><strong>$${formatearNumero(m.monto)}</strong></td>
                                         <td style="font-size:13px;color:#444;">${escHtml(m.detalle)}</td>
                                         <td style="white-space:nowrap;">
-                                            <button class="btn-secundario btn-editar" data-tipo="${dataTipo}" data-id="${m.refId}" title="Editar">✏️</button>
-                                            <button class="btn-danger btn-eliminar" data-tipo="${dataTipo}" data-id="${m.refId}" title="Eliminar">🗑️</button>
+                                            ${puedeModificar(m) ? '<button class="btn-secundario btn-editar" data-tipo="' + dataTipo + '" data-id="' + m.refId + '" title="Editar">✏️</button><button class="btn-danger btn-eliminar" data-tipo="' + dataTipo + '" data-id="' + m.refId + '" title="Eliminar">🗑️</button>' : '<span style="color:#aaa;font-size:11px;" title="Solo ' + escHtml(m.cargadoPor || '?') + ' puede editar/borrar">🔒 ' + escHtml(m.cargadoPor || '?') + '</span>'}
                                         </td>
                                     </tr>
                                 `;
@@ -5104,6 +5109,20 @@ window.onload = async function() {
             // ===== DELEGACIÓN DE EVENTOS para botones eliminar/editar/restaurar =====
             const tabContent = document.getElementById('tab-content');
             if (tabContent) {
+                // v3.15: helper para verificar permisos al editar/eliminar
+                function verificarPermisoRegistro(tipo, id) {
+                    const mapa = { trabajo: 'trabajos', pago: 'pagosTractoristas', gasto: 'gastosGenerales', 'pago-balance': 'pagosEntreEmmaYPablo' };
+                    const key = mapa[tipo];
+                    if (!key) return true; // lote/tractorista son globales, ambos pueden
+                    const reg = (estado[key] || []).find(x => x.id === id);
+                    if (!reg) return true;
+                    if (!puedeModificar(reg)) {
+                        showToast('Solo ' + (reg.cargadoPor || '?') + ' puede modificar este registro', 'warning', 3500);
+                        return false;
+                    }
+                    return true;
+                }
+
                 tabContent.addEventListener('click', function(e) {
                     // Eliminar
                     const btnDel = e.target.closest('.btn-eliminar');
@@ -5111,6 +5130,7 @@ window.onload = async function() {
                         const tipo = btnDel.getAttribute('data-tipo');
                         const id = btnDel.getAttribute('data-id');
                         const nombre = btnDel.getAttribute('data-nombre');
+                        if (!verificarPermisoRegistro(tipo, parseInt(id))) return;
                         switch (tipo) {
                             case 'trabajo': eliminarTrabajo(parseInt(id)); break;
                             case 'pago': eliminarPago(parseInt(id)); break;
@@ -5126,6 +5146,7 @@ window.onload = async function() {
                     if (btnEdit) {
                         const tipo = btnEdit.getAttribute('data-tipo');
                         const id = parseInt(btnEdit.getAttribute('data-id'));
+                        if (!verificarPermisoRegistro(tipo, id)) return;
                         switch (tipo) {
                             case 'trabajo': editarTrabajo(id); break;
                             case 'pago': editarPago(id); break;
