@@ -3937,16 +3937,6 @@
                         }
                     });
                 });
-            } else if (tabActual === 'balance') {
-                const inputs = document.querySelectorAll('#b-fecha, #b-pagador, #b-monto, #b-concepto');
-                inputs.forEach(input => {
-                    input.addEventListener('keypress', function(e) {
-                        if (e.key === 'Enter') {
-                            e.preventDefault();
-                            agregarPagoBalance();
-                        }
-                    });
-                });
             } else if (tabActual === 'config') {
                 const loteInputs = document.querySelectorAll('#l-nombre, #l-largo, #l-ancho');
                 loteInputs.forEach(input => {
@@ -4450,31 +4440,9 @@
         }
 
 
-        async function agregarPagoBalance() {
-            const fecha = document.getElementById('b-fecha').value;
-            const pagador = document.getElementById('b-pagador').value;
-            const monto = parseFloat(document.getElementById('b-monto').value);
-
-            if (!fecha) { showToast('Ingresá una fecha', 'warning'); return; }
-            if (isNaN(monto) || monto <= 0) { showToast('Ingresá un monto mayor a 0', 'warning'); return; }
-
-            const pago = {
-                id: Date.now(),
-                fecha,
-                pagador,
-                monto,
-                concepto: document.getElementById('b-concepto').value.trim(),
-                cargadoPor: obtenerUsuarioActivo(),
-                creadoEn: Date.now()
-            };
-
-            estado.pagosEntreEmmaYPablo.push(pago);
-            await guardar();
-            document.getElementById('b-concepto').value = '';
-            document.getElementById('b-monto').value = '';
-            renderizar();
-            showToast('Pago entre Emma y Pablo registrado', 'success', 2000);
-        }
+        // Nota v3.15: agregarPagoBalance() fue removida. Los pagos Emma-Pablo
+        // ahora se cargan desde la pestaña Movimientos con tipo "pago-balance"
+        // a través de agregarMovimiento().
 
         async function eliminarPagoBalance(id) {
             const ok = await confirmarModal('¿Eliminar este pago?\n\nVa a la papelera y se puede recuperar durante 7 días.', { titulo: 'Confirmar eliminación', confirmar: 'Sí, eliminar', peligroso: true });
