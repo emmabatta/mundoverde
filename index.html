@@ -1711,12 +1711,18 @@
         function guardarUsuarioActivo(nombre) {
             localStorage.setItem(PIN_USER_KEY, nombre);
         }
-        // v3.15: solo el usuario que cargó un registro puede modificarlo/borrarlo.
-        // Si el registro no tiene cargadoPor (datos viejos), se permite a cualquiera.
+        // v3.19: el "dueño" de un registro depende del tipo:
+        //  - Pagos/gastos/pagos-balance (tienen 'pagador'): el dueño es el PAGADOR (de quién es la plata)
+        //  - Trabajos (no tienen pagador): el dueño es quien lo cargó (cargadoPor)
+        // Solo el dueño puede editar/borrar.
         function puedeModificar(registro) {
             if (!registro) return false;
-            if (!registro.cargadoPor) return true; // registros legacy sin dueño
-            return registro.cargadoPor === obtenerUsuarioActivo();
+            const usuario = obtenerUsuarioActivo();
+            if (registro.pagador) {
+                return registro.pagador === usuario;
+            }
+            if (!registro.cargadoPor) return true; // legacy sin dueño
+            return registro.cargadoPor === usuario;
         }
         function inicializarSelectorUsuario() {
             const sel = document.getElementById('usuario-activo');
@@ -3512,7 +3518,7 @@
                                         <td><strong>$${formatearNumero(m.monto)}</strong></td>
                                         <td style="font-size:13px;color:#444;">${escHtml(m.detalle)}</td>
                                         <td style="white-space:nowrap;">
-                                            ${puedeModificar(m) ? '<button class="btn-secundario btn-editar" data-tipo="' + dataTipo + '" data-id="' + m.refId + '" title="Editar">✏️</button><button class="btn-danger btn-eliminar" data-tipo="' + dataTipo + '" data-id="' + m.refId + '" title="Eliminar">🗑️</button>' : '<span style="color:#aaa;font-size:11px;" title="Solo ' + escHtml(m.cargadoPor || '?') + ' puede editar/borrar">🔒 ' + escHtml(m.cargadoPor || '?') + '</span>'}
+                                            ${puedeModificar(m) ? '<button class="btn-secundario btn-editar" data-tipo="' + dataTipo + '" data-id="' + m.refId + '" title="Editar">✏️</button><button class="btn-danger btn-eliminar" data-tipo="' + dataTipo + '" data-id="' + m.refId + '" title="Eliminar">🗑️</button>' : '<span style="color:#aaa;font-size:11px;" title="Solo ' + escHtml(m.pagador || '?') + ' puede editar/borrar">🔒 ' + escHtml(m.pagador || '?') + '</span>'}
                                         </td>
                                     </tr>
                                 `;
@@ -5098,7 +5104,8 @@ window.onload = async function() {
                     const reg = (estado[key] || []).find(x => x.id === id);
                     if (!reg) return true;
                     if (!puedeModificar(reg)) {
-                        showToast('Solo ' + (reg.cargadoPor || '?') + ' puede modificar este registro', 'warning', 3500);
+                        const duenio = reg.pagador || reg.cargadoPor || '?';
+                        showToast('Solo ' + duenio + ' puede modificar este registro', 'warning', 3500);
                         return false;
                     }
                     return true;
