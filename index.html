@@ -1245,13 +1245,14 @@
             const p = estado.pagosTractoristas.find(x => x.id === id);
             if (!p) return;
             const tractoristasOpts = estado.tractoristas.map(n => ({ value: n, label: n }));
-            await abrirModalEdicion('Editar Pago', [
+            // v3.17: campo pagador NO editable (queda como se cargó: vos)
+            await abrirModalEdicion('Editar Pago (pagador: ' + escHtml(p.pagador) + ')', [
                 { key: 'fecha', label: 'Fecha', type: 'date', value: p.fecha },
                 { key: 'tractorista', label: 'Tractorista', type: 'select', value: p.tractorista, options: tractoristasOpts },
-                { key: 'pagador', label: 'Pagador', type: 'select', value: p.pagador, options: [{value:'Emma',label:'Emma'},{value:'Pablo',label:'Pablo'}] },
                 { key: 'monto', label: 'Monto', type: 'number', value: p.monto },
                 { key: 'concepto', label: 'Concepto', type: 'textarea', value: p.concepto }
             ], async (v) => {
+                v.pagador = p.pagador; // mantener pagador original
                 const monto = parseFloat(v.monto);
                 if (!v.fecha) { showToast('Fecha requerida', 'warning'); return false; }
                 if (isNaN(monto) || monto <= 0) { showToast('Monto inválido', 'warning'); return false; }
@@ -1271,13 +1272,13 @@
         async function editarGasto(id) {
             const g = estado.gastosGenerales.find(x => x.id === id);
             if (!g) return;
-            await abrirModalEdicion('Editar Gasto', [
+            await abrirModalEdicion('Editar Gasto (pagador: ' + escHtml(g.pagador) + ')', [
                 { key: 'fecha', label: 'Fecha', type: 'date', value: g.fecha },
                 { key: 'concepto', label: 'Concepto', type: 'text', value: g.concepto },
-                { key: 'pagador', label: 'Pagador', type: 'select', value: g.pagador, options: [{value:'Emma',label:'Emma'},{value:'Pablo',label:'Pablo'}] },
                 { key: 'monto', label: 'Monto', type: 'number', value: g.monto },
                 { key: 'detalle', label: 'Detalle', type: 'textarea', value: g.detalle }
             ], async (v) => {
+                v.pagador = g.pagador; // v3.17: mantener pagador original
                 const monto = parseFloat(v.monto);
                 if (!v.fecha) { showToast('Fecha requerida', 'warning'); return false; }
                 if (!v.concepto || !v.concepto.trim()) { showToast('Concepto requerido', 'warning'); return false; }
@@ -1298,12 +1299,12 @@
         async function editarPagoBalance(id) {
             const p = estado.pagosEntreEmmaYPablo.find(x => x.id === id);
             if (!p) return;
-            await abrirModalEdicion('Editar Pago Emma-Pablo', [
+            await abrirModalEdicion('Editar Pago Emma-Pablo (pagador: ' + escHtml(p.pagador) + ')', [
                 { key: 'fecha', label: 'Fecha', type: 'date', value: p.fecha },
-                { key: 'pagador', label: 'Quien pagó', type: 'select', value: p.pagador, options: [{value:'Emma',label:'Emma'},{value:'Pablo',label:'Pablo'}] },
                 { key: 'monto', label: 'Monto', type: 'number', value: p.monto },
                 { key: 'concepto', label: 'Concepto', type: 'textarea', value: p.concepto }
             ], async (v) => {
+                v.pagador = p.pagador; // v3.17: mantener pagador original
                 const monto = parseFloat(v.monto);
                 if (!v.fecha) { showToast('Fecha requerida', 'warning'); return false; }
                 if (isNaN(monto) || monto <= 0) { showToast('Monto inválido', 'warning'); return false; }
@@ -1519,6 +1520,11 @@
             if (!k) return;
             const item = estado[k].find(x => x.id === id);
             if (item) {
+                // v3.18: solo el dueño puede restaurar
+                if (!puedeModificar(item)) {
+                    showToast('Solo ' + (item.cargadoPor || '?') + ' puede restaurar este registro', 'warning', 3500);
+                    return;
+                }
                 delete item.eliminado;
                 delete item.eliminadoPor;
                 await guardar();
@@ -1527,11 +1533,17 @@
             }
         }
         async function eliminarDefinitivo(tipo, id) {
-            const ok = await confirmarModal('¿Borrar este registro DEFINITIVAMENTE?\n\nEsta acción no se puede deshacer.', { titulo: 'Borrado permanente', confirmar: 'Sí, borrar definitivamente', peligroso: true });
-            if (!ok) return;
             const mapKey = { trabajo: 'trabajos', pago: 'pagosTractoristas', gasto: 'gastosGenerales', 'pago-balance': 'pagosEntreEmmaYPablo' };
             const k = mapKey[tipo];
             if (!k) return;
+            const item = estado[k].find(x => x.id === id);
+            // v3.18: solo el dueño puede borrar definitivamente
+            if (item && !puedeModificar(item)) {
+                showToast('Solo ' + (item.cargadoPor || '?') + ' puede borrar este registro', 'warning', 3500);
+                return;
+            }
+            const ok = await confirmarModal('¿Borrar este registro DEFINITIVAMENTE?\n\nEsta acción no se puede deshacer.', { titulo: 'Borrado permanente', confirmar: 'Sí, borrar definitivamente', peligroso: true });
+            if (!ok) return;
             estado[k] = estado[k].filter(x => x.id !== id);
             await guardar();
             renderizar();
@@ -3402,9 +3414,9 @@
                             </div>
                             <div class="form-group">
                                 <label>Quien paga</label>
-                                <select id="mov-pagador">
-                                    <option value="Emma">👨‍🌾 Emma</option>
-                                    <option value="Pablo">👨‍🌾 Pablo</option>
+                                <select id="mov-pagador" disabled style="background:#e8f5e9;font-weight:bold;cursor:not-allowed;" title="Solo podés cargar movimientos a tu propio nombre">
+                                    <option value="Emma" ${obtenerUsuarioActivo()==='Emma'?'selected':''}>👨‍🌾 Emma${obtenerUsuarioActivo()==='Emma'?' (vos)':''}</option>
+                                    <option value="Pablo" ${obtenerUsuarioActivo()==='Pablo'?'selected':''}>👨‍🌾 Pablo${obtenerUsuarioActivo()==='Pablo'?' (vos)':''}</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -4196,7 +4208,8 @@
             if (!tipoSel) return;
             const tipo = tipoSel.value;
             const fecha = document.getElementById('mov-fecha').value;
-            const pagador = document.getElementById('mov-pagador').value;
+            // v3.17: forzar pagador al usuario activo (no se puede cargar a nombre del otro)
+            const pagador = obtenerUsuarioActivo();
             const monto = parseFloat(document.getElementById('mov-monto').value);
             const detalle = (document.getElementById('mov-detalle').value || '').trim();
 
@@ -5155,7 +5168,7 @@ window.onload = async function() {
         // GitHub Pages, Netlify, Vercel u otro proveedor HTTPS.
         if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
             navigator.serviceWorker.register('data:application/javascript;base64,' + btoa(`
-                const CACHE_NAME = 'mundoverde-v2';
+                const CACHE_NAME = 'mundoverde-v3';
                 // Pre-cachear los assets críticos (Firebase y ExcelJS) en la instalación.
                 // Esto permite que el sistema funcione completamente sin internet después del primer acceso.
                 const PRECACHE_URLS = [
@@ -5184,9 +5197,27 @@ window.onload = async function() {
 
                 self.addEventListener('fetch', (event) => {
                     if (event.request.method !== 'GET') return;
-                    // No interceptar las llamadas a Firestore (necesitan ir en vivo o usar la cache propia de Firebase)
                     if (event.request.url.includes('firestore.googleapis.com')) return;
 
+                    // v3.18: el documento HTML (navegación) usa NETWORK-FIRST:
+                    // siempre trae la última versión online; solo usa cache si no hay internet.
+                    // Esto evita que el sistema quede "pegado" en una versión vieja tras actualizar.
+                    const esNavegacion = event.request.mode === 'navigate' ||
+                        (event.request.destination === 'document');
+                    if (esNavegacion) {
+                        event.respondWith(
+                            fetch(event.request).then((networkResponse) => {
+                                if (networkResponse && networkResponse.status === 200) {
+                                    const copia = networkResponse.clone();
+                                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, copia));
+                                }
+                                return networkResponse;
+                            }).catch(() => caches.match(event.request))
+                        );
+                        return;
+                    }
+
+                    // Para assets (Firebase, ExcelJS): cache-first con actualización en background
                     event.respondWith(
                         caches.open(CACHE_NAME).then((cache) => {
                             return cache.match(event.request).then((cachedResponse) => {
@@ -5196,7 +5227,6 @@ window.onload = async function() {
                                     }
                                     return networkResponse;
                                 }).catch(() => cachedResponse);
-
                                 return cachedResponse || fetchPromise;
                             });
                         })
