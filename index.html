@@ -367,10 +367,16 @@
             width: 70px; height: 70px;
             justify-self: center;
             cursor: pointer;
-            transition: all 0.15s;
             min-height: 70px;
+            /* v3.21: respuesta táctil instantánea en móvil */
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(255,255,255,0.4);
+            user-select: none;
+            -webkit-user-select: none;
+            transition: background 0.05s, transform 0.05s;
         }
-        .pin-key:hover, .pin-key:active { background: rgba(255,255,255,0.3); transform: scale(0.95); }
+        .pin-key:active { background: rgba(255,255,255,0.4); transform: scale(0.92); }
+        .pin-key:hover { background: rgba(255,255,255,0.25); }
         .pin-key.special {
             background: transparent;
             border-color: transparent;
@@ -729,8 +735,22 @@
                 const cls = (t === '⌫') ? 'pin-key special' : 'pin-key';
                 return '<button class="' + cls + '" data-key="' + t + '">' + t + '</button>';
             }).join('');
+            // v3.21: usar pointerdown para respuesta táctil instantánea (sin esperar al click ~300ms)
             keypad.querySelectorAll('.pin-key').forEach(btn => {
-                btn.onclick = () => onPinKey(btn.getAttribute('data-key'));
+                let usado = false;
+                const fire = (e) => {
+                    if (usado) return;
+                    usado = true;
+                    e.preventDefault();
+                    onPinKey(btn.getAttribute('data-key'));
+                    // Reset rápido para permitir siguiente tap
+                    setTimeout(() => { usado = false; }, 80);
+                };
+                btn.addEventListener('pointerdown', fire, { passive: false });
+                // Fallback para navegadores sin pointer events
+                btn.addEventListener('click', (e) => {
+                    if (!usado) fire(e);
+                });
             });
         }
 
@@ -1643,6 +1663,12 @@
             const quienPaga = bc.diferencia > 0 ? 'Pablo' : 'Emma';
             const aQuien = quienPaga === 'Pablo' ? 'Emma' : 'Pablo';
             const monto = bc.montoParaEquilibrar;
+
+            // v3.20: solo el que debe pagar puede iniciar el equilibrio
+            if (obtenerUsuarioActivo() !== quienPaga) {
+                showToast('Solo ' + quienPaga + ' puede registrar este pago desde su usuario', 'warning', 4500);
+                return;
+            }
 
             const ok = await confirmarModal(
                 'Para equilibrar las cuentas:\n\n' +
@@ -3566,12 +3592,19 @@
                             <div style="font-size:48px;color:${colorEquilibrio};font-weight:bold;margin:15px 0;">
                                 $${formatearNumero(bc.montoParaEquilibrar)}
                             </div>
-                            <button class="btn-success" onclick="equilibrarAhora()" style="font-size:16px;padding:14px 28px;">
-                                ⚡ Equilibrar ahora — registrar este pago
-                            </button>
-                            <div style="font-size:12px;color:#666;margin-top:10px;">
-                                Te precarga el formulario "Pago Emma-Pablo" con $${formatearNumero(bc.montoParaEquilibrar)} de ${quienDebe} a ${aQuien}.
-                            </div>
+                            ${obtenerUsuarioActivo() === quienDebe ? `
+                                <button class="btn-success" onclick="equilibrarAhora()" style="font-size:16px;padding:14px 28px;">
+                                    ⚡ Equilibrar ahora — registrar este pago
+                                </button>
+                                <div style="font-size:12px;color:#666;margin-top:10px;">
+                                    Te precarga el formulario "Pago Emma-Pablo" con $${formatearNumero(bc.montoParaEquilibrar)} de ${quienDebe} a ${aQuien}.
+                                </div>
+                            ` : `
+                                <div style="background:#fff3e0;border:1px solid #FB8C00;padding:14px;border-radius:8px;color:#5D4037;font-size:14px;">
+                                    🔒 Le toca a <strong>${quienDebe}</strong> registrar este pago desde su usuario.<br>
+                                    <span style="font-size:12px;color:#666;">Vos (${obtenerUsuarioActivo()}) no podés cargar pagos a nombre de ${quienDebe}.</span>
+                                </div>
+                            `}
                         `}
                     </div>
 
