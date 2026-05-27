@@ -751,7 +751,14 @@
             });
         }
 
+        // v3.23: debounce anti doble-disparo (touch → click duplicado en algunos navegadores)
+        let _ultimoPinTap = 0;
         async function onPinKey(tecla) {
+            const ahora = Date.now();
+            // Si llegó la misma señal en menos de 200ms, es un disparo duplicado del navegador (touch+click)
+            if (ahora - _ultimoPinTap < 200) return;
+            _ultimoPinTap = ahora;
+
             const error = document.getElementById('pin-error');
             error.textContent = '';
 
