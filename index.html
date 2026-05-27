@@ -735,22 +735,19 @@
                 const cls = (t === '⌫') ? 'pin-key special' : 'pin-key';
                 return '<button class="' + cls + '" data-key="' + t + '">' + t + '</button>';
             }).join('');
-            // v3.21: usar pointerdown para respuesta táctil instantánea (sin esperar al click ~300ms)
+            // v3.22: usar SOLO un listener para evitar doble disparo.
+            // Si el navegador soporta pointer events → pointerdown (instantáneo).
+            // Si no → click (fallback). Nunca ambos en el mismo botón.
+            const soportaPointer = 'onpointerdown' in window;
             keypad.querySelectorAll('.pin-key').forEach(btn => {
-                let usado = false;
-                const fire = (e) => {
-                    if (usado) return;
-                    usado = true;
-                    e.preventDefault();
-                    onPinKey(btn.getAttribute('data-key'));
-                    // Reset rápido para permitir siguiente tap
-                    setTimeout(() => { usado = false; }, 80);
-                };
-                btn.addEventListener('pointerdown', fire, { passive: false });
-                // Fallback para navegadores sin pointer events
-                btn.addEventListener('click', (e) => {
-                    if (!usado) fire(e);
-                });
+                if (soportaPointer) {
+                    btn.addEventListener('pointerdown', (e) => {
+                        e.preventDefault();
+                        onPinKey(btn.getAttribute('data-key'));
+                    });
+                } else {
+                    btn.addEventListener('click', () => onPinKey(btn.getAttribute('data-key')));
+                }
             });
         }
 
