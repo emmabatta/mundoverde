@@ -5457,6 +5457,26 @@ window.onload = async function() {
 
             renderizar();
         };
+
+        // ===== AVISO DE VERSIÓN NUEVA (v3.25) =====
+        // Cuando el SW descarga en background una versión más reciente del HTML, nos avisa.
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'NEW_VERSION_AVAILABLE') {
+                    mostrarVersionNuevaToast();
+                }
+            });
+        }
+        function mostrarVersionNuevaToast() {
+            if (document.getElementById('version-nueva-toast')) return; // no duplicar
+            const toast = document.createElement('div');
+            toast.id = 'version-nueva-toast';
+            toast.innerHTML = '✨ Hay una versión nueva. Tocá para actualizar.';
+            toast.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:#1b5e20;color:white;padding:14px 22px;border-radius:14px;box-shadow:0 6px 16px rgba(0,0,0,0.3);font-weight:bold;font-size:14px;z-index:99999;cursor:pointer;-webkit-tap-highlight-color:transparent;text-align:center;max-width:90vw;';
+            toast.onclick = () => location.reload();
+            document.body.appendChild(toast);
+        }
+
     </script>
 
     <script>
@@ -5464,7 +5484,7 @@ window.onload = async function() {
         // v3.24: cache v4 (forzar refresh tras truncado) + fix offline (detecta navigator.onLine + timeout)
         if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
             navigator.serviceWorker.register('data:application/javascript;base64,' + btoa(`
-                const CACHE_NAME = 'mundoverde-v4';
+                const CACHE_NAME = 'mundoverde-v5';
                 const PRECACHE_URLS = [
                     'https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js',
                     'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js',
@@ -5497,37 +5517,34 @@ window.onload = async function() {
                         (event.request.destination === 'document');
 
                     if (esNavegacion) {
-                        // v3.24: si NO hay internet, ir directo al cache (sin esperar timeout)
-                        if (self.navigator && self.navigator.onLine === false) {
-                            event.respondWith(
-                                caches.match(event.request).then(r => r || caches.match('/') || fetch(event.request).catch(() => Response.error()))
-                            );
-                            return;
-                        }
-                        // Con internet: network-first con timeout de 3s + fallback a cache
+                        // v3.25: CACHE-FIRST con revalidación en background (stale-while-revalidate)
+                        // Esto garantiza apertura instantánea siempre, sin depender de navigator.onLine
+                        // ni de timeouts (que en iOS Safari con señal ambigua se cuelgan).
                         event.respondWith(
-                            new Promise((resolve) => {
-                                let resuelto = false;
-                                const timeout = setTimeout(() => {
-                                    if (resuelto) return;
-                                    resuelto = true;
-                                    caches.match(event.request).then(r => resolve(r || fetch(event.request).catch(() => Response.error())));
-                                }, 3000);
-                                fetch(event.request).then((networkResponse) => {
-                                    if (resuelto) return;
-                                    resuelto = true;
-                                    clearTimeout(timeout);
+                            caches.match(event.request).then((cachedResponse) => {
+                                // En background: intentar bajar versión nueva y guardarla
+                                const fetchPromise = fetch(event.request).then((networkResponse) => {
                                     if (networkResponse && networkResponse.status === 200) {
                                         const copia = networkResponse.clone();
                                         caches.open(CACHE_NAME).then(cache => cache.put(event.request, copia));
+                                        // Si había cache previo y el nuevo es distinto, avisar al cliente
+                                        if (cachedResponse) {
+                                            Promise.all([
+                                                cachedResponse.clone().text(),
+                                                networkResponse.clone().text()
+                                            ]).then(([viejo, nuevo]) => {
+                                                if (viejo !== nuevo) {
+                                                    self.clients.matchAll().then(clients => {
+                                                        clients.forEach(c => c.postMessage({ type: 'NEW_VERSION_AVAILABLE' }));
+                                                    });
+                                                }
+                                            }).catch(() => {});
+                                        }
                                     }
-                                    resolve(networkResponse);
-                                }).catch(() => {
-                                    if (resuelto) return;
-                                    resuelto = true;
-                                    clearTimeout(timeout);
-                                    caches.match(event.request).then(r => resolve(r || Response.error()));
-                                });
+                                    return networkResponse;
+                                }).catch(() => null);
+                                // Devolver cache instantáneo si existe, sino esperar fetch
+                                return cachedResponse || fetchPromise || Response.error();
                             })
                         );
                         return;
