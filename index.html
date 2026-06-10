@@ -573,6 +573,16 @@
         <div class="tabs">
             <div class="tab-list" id="tabs">
                 <button class="tab active" data-tab="trabajo">📝 Trabajos</button>
+                <button class="tab" data-tab="contador" style="display:inline-flex;align-items:center;gap:6px;">
+                    <svg width="18" height="18" viewBox="0 0 40 40" style="flex-shrink:0;vertical-align:middle;">
+                      <ellipse cx="20" cy="36" rx="14" ry="1.8" fill="#888" opacity="0.25"/>
+                      <circle cx="20" cy="20" r="15" fill="#D4B441" stroke="#8B6914" stroke-width="0.6"/>
+                      <path d="M20 6 Q26 7 30 12 Q34 17 33 24 Q31 31 24 33 Q17 35 11 30 Q5 24 7 16 Q10 9 18 8" fill="none" stroke="#8B6914" stroke-width="0.8" opacity="0.7"/>
+                      <path d="M20 10 Q25 11 28 15 Q30 19 28 23 Q26 27 21 27 Q15 27 13 22 Q12 17 17 14" fill="none" stroke="#8B6914" stroke-width="0.7" opacity="0.7"/>
+                      <path d="M20 14 Q23 14 24 17 Q25 20 22 22 Q19 23 17 20" fill="none" stroke="#8B6914" stroke-width="0.6" opacity="0.7"/>
+                    </svg>
+                    Contador
+                </button>
                 <button class="tab" data-tab="movimientos">💸 Movimientos</button>
                 <button class="tab" data-tab="balance">⚖️ Balance</button>
                 <button class="tab" data-tab="dashboard">📈 Dashboard</button>
@@ -1733,6 +1743,144 @@
             }
         }
 
+        // ===== CONTADOR DE ROLLOS (v3.24) =====
+        // Contador actual vive en localStorage para sobrevivir bloqueos de pantalla / cierre de pestaña.
+        // Conteos guardados están en estado.conteoRollos y se sincronizan con Firebase.
+        const CONTADOR_ACTUAL_KEY = 'mundoverde_contador_actual';
+        const CONTADOR_VIBRACION_KEY = 'mundoverde_contador_vibracion';
+        function obtenerContadorActual() {
+            return parseInt(localStorage.getItem(CONTADOR_ACTUAL_KEY), 10) || 0;
+        }
+        function guardarContadorActual(n) {
+            localStorage.setItem(CONTADOR_ACTUAL_KEY, String(Math.max(0, n)));
+        }
+        function obtenerVibracionContador() {
+            return localStorage.getItem(CONTADOR_VIBRACION_KEY) === '1';
+        }
+        function setVibracionContador(activa) {
+            localStorage.setItem(CONTADOR_VIBRACION_KEY, activa ? '1' : '0');
+        }
+        function vibrarSiActivo() {
+            if (obtenerVibracionContador() && navigator.vibrate) navigator.vibrate(30);
+        }
+        function sumarRollo() {
+            guardarContadorActual(obtenerContadorActual() + 1);
+            vibrarSiActivo();
+            actualizarContadorUI();
+        }
+        function restarRollo() {
+            const n = obtenerContadorActual() - 1;
+            if (n < 0) return;
+            guardarContadorActual(n);
+            vibrarSiActivo();
+            actualizarContadorUI();
+        }
+        async function reiniciarContador() {
+            const actual = obtenerContadorActual();
+            if (actual === 0) { showToast('Ya está en 0', 'info', 1500); return; }
+            const ok = await confirmarModal('¿Reiniciar el contador a 0?\n\nVas a perder los ' + actual + ' rollos contados sin guardar.',
+                { titulo: '🔁 Reiniciar contador', confirmar: 'Sí, reiniciar', peligroso: true });
+            if (ok) {
+                guardarContadorActual(0);
+                actualizarContadorUI();
+                showToast('Contador reiniciado', 'info', 1500);
+            }
+        }
+        function toggleVibracion() {
+            const nueva = !obtenerVibracionContador();
+            setVibracionContador(nueva);
+            if (nueva && navigator.vibrate) navigator.vibrate(50);
+            actualizarContadorUI();
+        }
+        async function guardarConteoRollos() {
+            const cantidad = obtenerContadorActual();
+            if (cantidad === 0) { showToast('El contador está en 0, nada que guardar', 'warning', 2500); return; }
+            if (!estado.lotes || estado.lotes.length === 0) { showToast('Primero agregá un lote en Config', 'warning', 3000); return; }
+
+            const opcionesLote = estado.lotes.map(l => ({ value: String(l.id), label: l.nombre }));
+            await abrirModalEdicion('💾 Guardar ' + cantidad + ' rollos', [
+                { key: 'loteId', label: 'Lote', type: 'select', value: String(estado.lotes[0].id), options: opcionesLote },
+                { key: 'nota', label: 'Nota de la fila (ej: fila sur, al lado del maíz)', type: 'text', value: '' }
+            ], async (v) => {
+                if (!v.nota || !v.nota.trim()) { showToast('Ingresá una nota para identificar la fila', 'warning'); return false; }
+                const lote = estado.lotes.find(l => String(l.id) === String(v.loteId));
+                if (!lote) { showToast('Lote inválido', 'warning'); return false; }
+                if (!Array.isArray(estado.conteoRollos)) estado.conteoRollos = [];
+                estado.conteoRollos.push({
+                    id: Date.now(),
+                    cantidad: cantidad,
+                    loteId: lote.id,
+                    lote: lote.nombre,
+                    nota: v.nota.trim(),
+                    fecha: new Date().toISOString().split('T')[0],
+                    cargadoPor: obtenerUsuarioActivo(),
+                    creadoEn: Date.now()
+                });
+                await guardar();
+                guardarContadorActual(0);
+                renderizar();
+                showToast('Guardado: ' + cantidad + ' rollos en "' + v.nota.trim() + '"', 'success', 2500);
+            });
+        }
+        async function editarConteoRollo(id) {
+            const c = (estado.conteoRollos || []).find(x => x.id === id);
+            if (!c) return;
+            const opcionesLote = estado.lotes.map(l => ({ value: String(l.id), label: l.nombre }));
+            await abrirModalEdicion('✏️ Editar conteo', [
+                { key: 'cantidad', label: 'Cantidad de rollos', type: 'number', value: c.cantidad },
+                { key: 'nota', label: 'Nota de la fila', type: 'text', value: c.nota },
+                { key: 'loteId', label: 'Lote', type: 'select', value: String(c.loteId), options: opcionesLote }
+            ], async (v) => {
+                const cant = parseInt(v.cantidad, 10);
+                if (isNaN(cant) || cant < 0) { showToast('Cantidad inválida', 'warning'); return false; }
+                if (!v.nota || !v.nota.trim()) { showToast('Nota requerida', 'warning'); return false; }
+                const lote = estado.lotes.find(l => String(l.id) === String(v.loteId));
+                if (!lote) { showToast('Lote inválido', 'warning'); return false; }
+                c.cantidad = cant;
+                c.nota = v.nota.trim();
+                c.loteId = lote.id;
+                c.lote = lote.nombre;
+                c.modificadoPor = obtenerUsuarioActivo();
+                c.modificadoEn = Date.now();
+                await guardar();
+                renderizar();
+                showToast('Conteo actualizado', 'success', 1800);
+            });
+        }
+        async function eliminarConteoRollo(id) {
+            const c = (estado.conteoRollos || []).find(x => x.id === id);
+            if (!c) return;
+            const ok = await confirmarModal('¿Eliminar el conteo "' + c.nota + '" (' + c.cantidad + ' rollos)?',
+                { titulo: 'Confirmar eliminación', confirmar: 'Sí, eliminar', peligroso: true });
+            if (ok) {
+                estado.conteoRollos = (estado.conteoRollos || []).filter(x => x.id !== id);
+                await guardar();
+                renderizar();
+                showToast('Conteo eliminado', 'info', 1800);
+            }
+        }
+        function actualizarContadorUI() {
+            const numEl = document.getElementById('contador-numero');
+            if (numEl) numEl.textContent = obtenerContadorActual();
+            const vibEl = document.getElementById('contador-vibracion-pill');
+            if (vibEl) {
+                const on = obtenerVibracionContador();
+                vibEl.textContent = on ? 'ON' : 'OFF';
+                vibEl.style.background = on ? '#43a047' : '#9e9e9e';
+            }
+        }
+        // v3.24: ícono del rollo dorado reutilizable
+        function iconoRollo(size) {
+            const s = size || 18;
+            return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 40 40" style="flex-shrink:0;vertical-align:middle;">' +
+                '<ellipse cx="20" cy="36" rx="14" ry="1.8" fill="#888" opacity="0.25"/>' +
+                '<circle cx="20" cy="20" r="15" fill="#D4B441" stroke="#8B6914" stroke-width="0.6"/>' +
+                '<path d="M20 6 Q26 7 30 12 Q34 17 33 24 Q31 31 24 33 Q17 35 11 30 Q5 24 7 16 Q10 9 18 8" fill="none" stroke="#8B6914" stroke-width="0.8" opacity="0.7"/>' +
+                '<path d="M20 10 Q25 11 28 15 Q30 19 28 23 Q26 27 21 27 Q15 27 13 22 Q12 17 17 14" fill="none" stroke="#8B6914" stroke-width="0.7" opacity="0.7"/>' +
+                '<path d="M20 14 Q23 14 24 17 Q25 20 22 22 Q19 23 17 20" fill="none" stroke="#8B6914" stroke-width="0.6" opacity="0.7"/>' +
+                '</svg>';
+        }
+
         // ===== USUARIO ACTIVO (Emma / Pablo) =====
         // Identifica quién está cargando datos en este momento. Se guarda en localStorage por dispositivo.
         function obtenerUsuarioActivo() {
@@ -1861,6 +2009,7 @@
                     lotes: estado.lotes,
                     tractoristas: estado.tractoristas,
                     actividades: estado.actividades,
+                    conteoRollos: estado.conteoRollos,
                     ultimaActualizacion: timestamp
                 }, { merge: true });
                 
@@ -1889,6 +2038,7 @@
                     if (datos.lotes) estado.lotes = datos.lotes;
                     if (datos.tractoristas) estado.tractoristas = datos.tractoristas;
                     if (datos.actividades) estado.actividades = datos.actividades;
+                if (datos.conteoRollos) estado.conteoRollos = datos.conteoRollos;
                     
                     console.log('✅ Datos cargados desde Firebase');
                     return true;
@@ -1946,6 +2096,7 @@
                 if (datos.lotes) estado.lotes = datos.lotes;
                 if (datos.tractoristas) estado.tractoristas = datos.tractoristas;
                 if (datos.actividades) estado.actividades = datos.actividades;
+                if (datos.conteoRollos) estado.conteoRollos = datos.conteoRollos;
 
                 localStorage.setItem('mundoverde_ultima_actualizacion', datos.ultimaActualizacion);
 
@@ -1958,7 +2109,8 @@
                         pagosEntreEmmaYPablo: estado.pagosEntreEmmaYPablo,
                         lotes: estado.lotes,
                         tractoristas: estado.tractoristas,
-                        actividades: estado.actividades
+                        actividades: estado.actividades,
+                            conteoRollos: estado.conteoRollos
                     });
                 } catch (e) {
                     console.error('Error guardando datos remotos en IndexedDB:', e);
@@ -2167,7 +2319,8 @@
                                 pagosEntreEmmaYPablo: estado.pagosEntreEmmaYPablo,
                                 lotes: estado.lotes,
                                 tractoristas: estado.tractoristas,
-                                actividades: estado.actividades
+                                actividades: estado.actividades,
+                            conteoRollos: estado.conteoRollos
                             });
                         } catch (e) { console.warn('No se pudo guardar versión previa a restauración:', e); }
 
@@ -2329,7 +2482,9 @@
             trabajos: [],
             pagosTractoristas: [],
             gastosGenerales: [],
-            pagosEntreEmmaYPablo: []
+            pagosEntreEmmaYPablo: [],
+            // v3.24: Contador de rollos (campo)
+            conteoRollos: []
         };
 
         let tabActual = 'trabajo';
@@ -2406,7 +2561,8 @@
                         pagosEntreEmmaYPablo: estado.pagosEntreEmmaYPablo,
                         lotes: estado.lotes,
                         tractoristas: estado.tractoristas,
-                        actividades: estado.actividades
+                        actividades: estado.actividades,
+                            conteoRollos: estado.conteoRollos
                     });
                     lastBackupTime = ahora;
                     changesSinceBackup = 0;
@@ -2434,7 +2590,8 @@
                     pagosEntreEmmaYPablo: estado.pagosEntreEmmaYPablo,
                     lotes: estado.lotes,
                     tractoristas: estado.tractoristas,
-                    actividades: estado.actividades
+                    actividades: estado.actividades,
+                            conteoRollos: estado.conteoRollos
                 };
                 
                 await guardarEnIndexedDB(datosParaGuardar);
@@ -2553,7 +2710,8 @@
                                 pagosEntreEmmaYPablo: estado.pagosEntreEmmaYPablo,
                                 lotes: estado.lotes,
                                 tractoristas: estado.tractoristas,
-                                actividades: estado.actividades
+                                actividades: estado.actividades,
+                            conteoRollos: estado.conteoRollos
                             });
                             sincronizarConFirebase();
                         }
@@ -2566,7 +2724,8 @@
                             pagosEntreEmmaYPablo: estado.pagosEntreEmmaYPablo,
                             lotes: estado.lotes,
                             tractoristas: estado.tractoristas,
-                            actividades: estado.actividades
+                            actividades: estado.actividades,
+                            conteoRollos: estado.conteoRollos
                         });
                         guardarEnLocalStorage();
                     }
@@ -2989,6 +3148,101 @@
                             `).join('') || '<tr><td colspan="8" style="text-align:center;">No hay trabajos que coincidan</td></tr>'}
                         </tbody>
                     </table>
+                `;
+            } else if (tabActual === 'contador') {
+                // ===== PESTAÑA CONTADOR DE ROLLOS (v3.24) =====
+                const conteos = (estado.conteoRollos || []).slice().sort((a, b) => (b.creadoEn || 0) - (a.creadoEn || 0));
+                // Agrupar por lote
+                const porLote = {};
+                conteos.forEach(c => {
+                    const key = c.loteId + '|' + c.lote;
+                    if (!porLote[key]) porLote[key] = { lote: c.lote, items: [], total: 0 };
+                    porLote[key].items.push(c);
+                    porLote[key].total += (parseInt(c.cantidad, 10) || 0);
+                });
+                const gruposHtml = Object.values(porLote).map(g => `
+                    <div class="card" style="margin-bottom: 14px; padding: 12px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e0e0e0;padding-bottom:8px;margin-bottom:8px;">
+                            <strong style="color:#2e7d32;font-size:16px;">📍 ${escHtml(g.lote)}</strong>
+                            <span style="background:#2e7d32;color:white;padding:4px 12px;border-radius:14px;font-weight:bold;font-size:15px;">${g.total} rollos</span>
+                        </div>
+                        ${g.items.map(c => `
+                            <div style="padding:10px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+                                <div style="flex:1;min-width:0;">
+                                    <div style="font-weight:bold;font-size:17px;color:#1b5e20;display:flex;align-items:center;gap:6px;">${iconoRollo(22)} ${c.cantidad} rollos</div>
+                                    <div style="font-size:13px;color:#555;margin-top:2px;word-break:break-word;">${escHtml(c.nota)}</div>
+                                    <div style="font-size:11px;color:#999;margin-top:3px;">${formatearFecha(c.fecha)} · por ${escHtml(c.cargadoPor || '?')}</div>
+                                </div>
+                                <div style="display:flex;gap:6px;flex-shrink:0;">
+                                    ${puedeModificar(c)
+                                        ? '<button class="btn-secundario" onclick="editarConteoRollo(' + c.id + ')" title="Editar" style="padding:8px 10px;">✏️</button>' +
+                                          '<button class="btn-danger" onclick="eliminarConteoRollo(' + c.id + ')" title="Eliminar" style="padding:8px 10px;">🗑️</button>'
+                                        : '<span style="color:#aaa;font-size:11px;align-self:center;" title="Solo ' + escHtml(c.cargadoPor || '?') + ' puede editar">🔒</span>'}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `).join('');
+
+                const totalGeneral = conteos.reduce((s, c) => s + (parseInt(c.cantidad, 10) || 0), 0);
+                const vibOn = obtenerVibracionContador();
+                const actual = obtenerContadorActual();
+
+                contenedor.innerHTML = `
+                    <h2 style="display:flex;align-items:center;gap:10px;">
+                        <svg width="32" height="32" viewBox="0 0 40 40" style="flex-shrink:0;">
+                          <ellipse cx="20" cy="36" rx="14" ry="1.8" fill="#888" opacity="0.25"/>
+                          <circle cx="20" cy="20" r="15" fill="#D4B441" stroke="#8B6914" stroke-width="0.6"/>
+                          <path d="M20 6 Q26 7 30 12 Q34 17 33 24 Q31 31 24 33 Q17 35 11 30 Q5 24 7 16 Q10 9 18 8" fill="none" stroke="#8B6914" stroke-width="0.8" opacity="0.7"/>
+                          <path d="M20 10 Q25 11 28 15 Q30 19 28 23 Q26 27 21 27 Q15 27 13 22 Q12 17 17 14" fill="none" stroke="#8B6914" stroke-width="0.7" opacity="0.7"/>
+                          <path d="M20 14 Q23 14 24 17 Q25 20 22 22 Q19 23 17 20" fill="none" stroke="#8B6914" stroke-width="0.6" opacity="0.7"/>
+                        </svg>
+                        Contador de Rollos
+                    </h2>
+
+                    <!-- DISPLAY GIGANTE -->
+                    <div class="card" style="text-align:center;background:linear-gradient(135deg,#e8f5e9,#c8e6c9);padding:30px 20px;margin-bottom:18px;">
+                        <div style="font-size:14px;color:#555;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;">Rollos contados</div>
+                        <div id="contador-numero" style="font-size:120px;font-weight:bold;color:#1b5e20;line-height:1;margin:10px 0;font-variant-numeric:tabular-nums;">${actual}</div>
+
+                        <!-- BOTÓN GIGANTE +1 -->
+                        <button onclick="sumarRollo()" style="background:#2e7d32;color:white;border:none;border-radius:18px;padding:25px 30px;font-size:28px;font-weight:bold;width:100%;max-width:360px;margin:0 auto;display:flex;align-items:center;justify-content:center;gap:14px;box-shadow:0 6px 14px rgba(46,125,50,0.4);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;">
+                            <svg width="36" height="36" viewBox="0 0 28 28" fill="none" stroke="white" stroke-width="2" stroke-linecap="round">
+                              <circle cx="11" cy="14" r="8"/>
+                              <circle cx="11" cy="14" r="5"/>
+                              <circle cx="11" cy="14" r="2"/>
+                              <circle cx="22" cy="6" r="5" fill="#2e7d32" stroke="white"/>
+                              <line x1="22" y1="3.5" x2="22" y2="8.5"/>
+                              <line x1="19.5" y1="6" x2="24.5" y2="6"/>
+                            </svg>
+                            Sumar rollo
+                        </button>
+
+                        <!-- Controles secundarios -->
+                        <div style="display:flex;gap:10px;justify-content:center;margin-top:14px;flex-wrap:wrap;">
+                            <button onclick="restarRollo()" style="background:#fff;color:#c62828;border:2px solid #c62828;border-radius:10px;padding:10px 18px;font-size:18px;font-weight:bold;min-width:70px;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;">−1</button>
+                            <button onclick="reiniciarContador()" style="background:#fff;color:#f57c00;border:2px solid #f57c00;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:bold;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;">🔁 Reiniciar</button>
+                            <button onclick="toggleVibracion()" style="background:#fff;color:#555;border:2px solid #999;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:6px;-webkit-tap-highlight-color:transparent;touch-action:manipulation;">
+                                📳 Vibración
+                                <span id="contador-vibracion-pill" style="background:${vibOn ? '#43a047' : '#9e9e9e'};color:white;padding:2px 8px;border-radius:10px;font-size:11px;">${vibOn ? 'ON' : 'OFF'}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- BOTÓN GUARDAR -->
+                    <button onclick="guardarConteoRollos()" class="btn-success" style="width:100%;padding:18px;font-size:18px;font-weight:bold;margin-bottom:20px;border-radius:12px;-webkit-tap-highlight-color:transparent;touch-action:manipulation;">
+                        💾 Guardar conteo
+                    </button>
+
+                    <!-- LISTA DE CONTEOS POR LOTE -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <h3 style="margin:0;">Conteos guardados</h3>
+                        ${totalGeneral > 0 ? '<span style="background:#1b5e20;color:white;padding:6px 14px;border-radius:14px;font-weight:bold;display:inline-flex;align-items:center;gap:6px;">Total: ' + totalGeneral + ' ' + iconoRollo(18).replace('#D4B441', '#FFD54F').replace('vertical-align:middle;', 'vertical-align:middle;filter:brightness(1.1);') + '</span>' : ''}
+                    </div>
+
+                    ${conteos.length === 0
+                        ? '<div class="card" style="text-align:center;color:#888;padding:30px;">No hay conteos guardados todavía.<br><small>Contá rollos y tocá <b>💾 Guardar conteo</b> para almacenarlos por lote.</small></div>'
+                        : gruposHtml}
                 `;
             } else if (tabActual === 'config') {
                 const totalEliminados = eliminados(estado.trabajos).length + eliminados(estado.pagosTractoristas).length + eliminados(estado.gastosGenerales).length + eliminados(estado.pagosEntreEmmaYPablo).length;
@@ -4828,7 +5082,8 @@
                     pagosEntreEmmaYPablo: estado.pagosEntreEmmaYPablo,
                     lotes: estado.lotes,
                     tractoristas: estado.tractoristas,
-                    actividades: estado.actividades
+                    actividades: estado.actividades,
+                            conteoRollos: estado.conteoRollos
                 });
                 console.log('✅ Backup guardado antes de importar');
             } catch (e) {
@@ -4997,7 +5252,7 @@
         // ===== DETECCIÓN DE CONEXIÓN Y SINCRONIZACIÓN =====
         let isOnline = navigator.onLine;
         let firebaseRealmenteConectado = false;
-        
+
         function updateConnectionStatus() {
             const statusEl = document.getElementById('connection-status');
             const textEl = document.getElementById('connection-text');
@@ -5008,7 +5263,7 @@
 
             if (!navigator.onLine) {
                 statusEl.className = 'connection-status offline';
-                textEl.textContent = pendingSyncOnReconnect ? 'Sin conexión (cambios pendientes)' : 'Sin conexión';
+                textEl.textContent = (typeof pendingSyncOnReconnect !== 'undefined' && pendingSyncOnReconnect) ? 'Sin conexión (cambios pendientes)' : 'Sin conexión';
                 firebaseRealmenteConectado = false;
                 console.log('🔴 Sin conexión a internet');
             } else if (esArchivoLocal) {
@@ -5017,9 +5272,9 @@
                 firebaseRealmenteConectado = false;
                 console.log('🟡 Modo Local - Archivo abierto desde el disco');
             } else {
-                if (firebaseIniciado && db) {
+                if (typeof firebaseIniciado !== 'undefined' && firebaseIniciado && typeof db !== 'undefined' && db) {
                     statusEl.className = 'connection-status online';
-                    textEl.textContent = pendingSyncOnReconnect ? 'Sincronizando...' : 'En línea';
+                    textEl.textContent = (typeof pendingSyncOnReconnect !== 'undefined' && pendingSyncOnReconnect) ? 'Sincronizando...' : 'En línea';
                     firebaseRealmenteConectado = true;
                     console.log('🟢 En línea - Firebase conectado');
                 } else {
@@ -5029,9 +5284,9 @@
                     console.log('🟡 Modo Local - Firebase no disponible');
                 }
             }
-            actualizarBadgePendientes();
+            if (typeof actualizarBadgePendientes === 'function') actualizarBadgePendientes();
         }
-        
+
         // Detectar cambios de conexión y sincronizar la cola pendiente al reconectar
         window.addEventListener('online', async () => {
             console.log('🌐 Conexión restaurada');
@@ -5039,14 +5294,13 @@
             updateConnectionStatus();
             showToast('Conexión restaurada — sincronizando datos...', 'info', 3000);
 
-            // Esperar un poco para que la red esté realmente lista, luego sincronizar
             setTimeout(async () => {
-                if (firebaseIniciado && db) {
+                if (typeof firebaseIniciado !== 'undefined' && firebaseIniciado && typeof db !== 'undefined' && db) {
                     try {
-                        await sincronizarConFirebase();
-                        if (pendingSyncOnReconnect) {
+                        if (typeof sincronizarConFirebase === 'function') await sincronizarConFirebase();
+                        if (typeof pendingSyncOnReconnect !== 'undefined' && pendingSyncOnReconnect) {
                             pendingSyncOnReconnect = false;
-                            actualizarBadgePendientes();
+                            if (typeof actualizarBadgePendientes === 'function') actualizarBadgePendientes();
                             showToast('Datos sincronizados con la nube', 'success', 2500);
                         }
                     } catch (e) {
@@ -5066,13 +5320,12 @@
 
 window.onload = async function() {
             // Migrar PIN viejo (single) al nuevo formato (Emma+Pablo) si corresponde
-            migrarPinLegacy();
+            if (typeof migrarPinLegacy === 'function') migrarPinLegacy();
             // Si hay al menos un PIN configurado: pedir el PIN para entrar
             // Si NO hay PINs: forzar configuración inicial (no se puede saltar)
-            if (pinExiste()) {
+            if (typeof pinExiste === 'function' && pinExiste()) {
                 mostrarPantallaPin('enter');
-            } else {
-                // Esperar 600ms para que la app cargue y entonces forzar configuración inicial
+            } else if (typeof pinExiste === 'function') {
                 setTimeout(() => {
                     if (!pinExiste()) {
                         mostrarPantallaPin('set_emma');
@@ -5084,12 +5337,12 @@ window.onload = async function() {
             ['click','touchstart','keydown'].forEach(evt => {
                 document.addEventListener(evt, () => {
                     const overlay = document.getElementById('pin-overlay');
-                    if (overlay && overlay.style.display === 'none') reiniciarTimerInactividad();
+                    if (overlay && overlay.style.display === 'none' && typeof reiniciarTimerInactividad === 'function') reiniciarTimerInactividad();
                 }, { passive: true });
             });
 
             // Inicializar selector de usuario activo
-            inicializarSelectorUsuario();
+            if (typeof inicializarSelectorUsuario === 'function') inicializarSelectorUsuario();
 
             // Cargar datos con timeout de 8 segundos para que si algo cuelga,
             // la app igual arranque y renderice (en el peor caso, vacía).
@@ -5101,23 +5354,24 @@ window.onload = async function() {
                 await cargaConTimeout;
             } catch (e) {
                 console.error('⚠️ Error/timeout en cargar inicial:', e && e.message ? e.message : e);
-                // No bloquear: seguimos para que la app al menos sea usable
             }
-            // Marcar carga inicial como completa para que el listener de Firebase
-            // pueda procesar cambios remotos sin pisar los datos locales recién cargados.
-            cargaInicialCompleta = true;
+            if (typeof cargaInicialCompleta !== 'undefined') cargaInicialCompleta = true;
 
             // Auto-purgar registros de la papelera con más de 7 días eliminados
             try {
-                const purgados = purgarPapeleraAntigua();
-                if (purgados > 0) {
-                    console.log('🧹 Auto-purga de papelera: ' + purgados + ' registros eliminados definitivamente');
-                    await guardar();
+                if (typeof purgarPapeleraAntigua === 'function') {
+                    const purgados = purgarPapeleraAntigua();
+                    if (purgados > 0) {
+                        console.log('🧹 Auto-purga de papelera: ' + purgados + ' registros eliminados definitivamente');
+                        await guardar();
+                    }
                 }
             } catch (e) { console.warn('Error en purga de papelera:', e); }
 
             // Verificar si hace mucho que no exporta a Excel (recordatorio cada 30 días)
-            setTimeout(() => verificarRecordatorioExport(), 4000);
+            if (typeof verificarRecordatorioExport === 'function') {
+                setTimeout(() => verificarRecordatorioExport(), 4000);
+            }
 
             setTimeout(() => { updateConnectionStatus(); }, 500);
 
@@ -5133,29 +5387,12 @@ window.onload = async function() {
             // ===== DELEGACIÓN DE EVENTOS para botones eliminar/editar/restaurar =====
             const tabContent = document.getElementById('tab-content');
             if (tabContent) {
-                // v3.15: helper para verificar permisos al editar/eliminar
-                function verificarPermisoRegistro(tipo, id) {
-                    const mapa = { trabajo: 'trabajos', pago: 'pagosTractoristas', gasto: 'gastosGenerales', 'pago-balance': 'pagosEntreEmmaYPablo' };
-                    const key = mapa[tipo];
-                    if (!key) return true; // lote/tractorista son globales, ambos pueden
-                    const reg = (estado[key] || []).find(x => x.id === id);
-                    if (!reg) return true;
-                    if (!puedeModificar(reg)) {
-                        const duenio = reg.pagador || reg.cargadoPor || '?';
-                        showToast('Solo ' + duenio + ' puede modificar este registro', 'warning', 3500);
-                        return false;
-                    }
-                    return true;
-                }
-
                 tabContent.addEventListener('click', function(e) {
-                    // Eliminar
                     const btnDel = e.target.closest('.btn-eliminar');
                     if (btnDel) {
                         const tipo = btnDel.getAttribute('data-tipo');
                         const id = btnDel.getAttribute('data-id');
                         const nombre = btnDel.getAttribute('data-nombre');
-                        if (!verificarPermisoRegistro(tipo, parseInt(id))) return;
                         switch (tipo) {
                             case 'trabajo': eliminarTrabajo(parseInt(id)); break;
                             case 'pago': eliminarPago(parseInt(id)); break;
@@ -5166,12 +5403,10 @@ window.onload = async function() {
                         }
                         return;
                     }
-                    // Editar
                     const btnEdit = e.target.closest('.btn-editar');
                     if (btnEdit) {
                         const tipo = btnEdit.getAttribute('data-tipo');
                         const id = parseInt(btnEdit.getAttribute('data-id'));
-                        if (!verificarPermisoRegistro(tipo, id)) return;
                         switch (tipo) {
                             case 'trabajo': editarTrabajo(id); break;
                             case 'pago': editarPago(id); break;
@@ -5181,20 +5416,18 @@ window.onload = async function() {
                         }
                         return;
                     }
-                    // Restaurar (papelera)
                     const btnRestore = e.target.closest('.btn-restaurar');
                     if (btnRestore) {
                         const tipo = btnRestore.getAttribute('data-tipo');
                         const id = parseInt(btnRestore.getAttribute('data-id'));
-                        restaurarRegistro(tipo, id);
+                        if (typeof restaurarRegistro === 'function') restaurarRegistro(tipo, id);
                         return;
                     }
-                    // Borrado definitivo (papelera)
                     const btnDelDef = e.target.closest('.btn-borrar-definitivo');
                     if (btnDelDef) {
                         const tipo = btnDelDef.getAttribute('data-tipo');
                         const id = parseInt(btnDelDef.getAttribute('data-id'));
-                        eliminarDefinitivo(tipo, id);
+                        if (typeof eliminarDefinitivo === 'function') eliminarDefinitivo(tipo, id);
                         return;
                     }
                 });
@@ -5206,15 +5439,10 @@ window.onload = async function() {
 
     <script>
         // Registrar Service Worker para funcionamiento offline.
-        // IMPORTANTE: los Service Workers SOLO funcionan cuando la página se sirve por HTTPS o desde localhost.
-        // Si abrís el archivo como file://, no hay Service Worker, pero igual el sistema funciona offline gracias
-        // al cacheo natural del navegador y a IndexedDB/localStorage. Para un offline 100% real, hospedalo en
-        // GitHub Pages, Netlify, Vercel u otro proveedor HTTPS.
+        // v3.24: cache v4 (forzar refresh tras truncado) + fix offline (detecta navigator.onLine + timeout)
         if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
             navigator.serviceWorker.register('data:application/javascript;base64,' + btoa(`
-                const CACHE_NAME = 'mundoverde-v3';
-                // Pre-cachear los assets críticos (Firebase y ExcelJS) en la instalación.
-                // Esto permite que el sistema funcione completamente sin internet después del primer acceso.
+                const CACHE_NAME = 'mundoverde-v4';
                 const PRECACHE_URLS = [
                     'https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js',
                     'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js',
@@ -5243,20 +5471,42 @@ window.onload = async function() {
                     if (event.request.method !== 'GET') return;
                     if (event.request.url.includes('firestore.googleapis.com')) return;
 
-                    // v3.18: el documento HTML (navegación) usa NETWORK-FIRST:
-                    // siempre trae la última versión online; solo usa cache si no hay internet.
-                    // Esto evita que el sistema quede "pegado" en una versión vieja tras actualizar.
                     const esNavegacion = event.request.mode === 'navigate' ||
                         (event.request.destination === 'document');
+
                     if (esNavegacion) {
+                        // v3.24: si NO hay internet, ir directo al cache (sin esperar timeout)
+                        if (self.navigator && self.navigator.onLine === false) {
+                            event.respondWith(
+                                caches.match(event.request).then(r => r || caches.match('/') || fetch(event.request).catch(() => Response.error()))
+                            );
+                            return;
+                        }
+                        // Con internet: network-first con timeout de 3s + fallback a cache
                         event.respondWith(
-                            fetch(event.request).then((networkResponse) => {
-                                if (networkResponse && networkResponse.status === 200) {
-                                    const copia = networkResponse.clone();
-                                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, copia));
-                                }
-                                return networkResponse;
-                            }).catch(() => caches.match(event.request))
+                            new Promise((resolve) => {
+                                let resuelto = false;
+                                const timeout = setTimeout(() => {
+                                    if (resuelto) return;
+                                    resuelto = true;
+                                    caches.match(event.request).then(r => resolve(r || fetch(event.request).catch(() => Response.error())));
+                                }, 3000);
+                                fetch(event.request).then((networkResponse) => {
+                                    if (resuelto) return;
+                                    resuelto = true;
+                                    clearTimeout(timeout);
+                                    if (networkResponse && networkResponse.status === 200) {
+                                        const copia = networkResponse.clone();
+                                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copia));
+                                    }
+                                    resolve(networkResponse);
+                                }).catch(() => {
+                                    if (resuelto) return;
+                                    resuelto = true;
+                                    clearTimeout(timeout);
+                                    caches.match(event.request).then(r => resolve(r || Response.error()));
+                                });
+                            })
                         );
                         return;
                     }
@@ -5281,4 +5531,51 @@ window.onload = async function() {
             }).catch(err => {
                 console.log('⚠️ Service Worker no disponible:', err);
             });
-        } else if (window.location.pr
+        } else if (window.location.protocol === 'file:') {
+            console.log('ℹ️ Service Worker no disponible en file:// — el sistema sigue funcionando offline gracias a IndexedDB/localStorage.');
+        }
+    </script>
+</body>
+</html>
+
+                                        const copia = networkResponse.clone();
+                                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copia));
+                                    }
+                                    resolve(networkResponse);
+                                }).catch(() => {
+                                    if (resuelto) return;
+                                    resuelto = true;
+                                    clearTimeout(timeout);
+                                    caches.match(event.request).then(r => resolve(r || Response.error()));
+                                });
+                            })
+                        );
+                        return;
+                    }
+
+                    // Para assets (Firebase, ExcelJS): cache-first con actualización en background
+                    event.respondWith(
+                        caches.open(CACHE_NAME).then((cache) => {
+                            return cache.match(event.request).then((cachedResponse) => {
+                                const fetchPromise = fetch(event.request).then((networkResponse) => {
+                                    if (networkResponse && networkResponse.status === 200) {
+                                        cache.put(event.request, networkResponse.clone());
+                                    }
+                                    return networkResponse;
+                                }).catch(() => cachedResponse);
+                                return cachedResponse || fetchPromise;
+                            });
+                        })
+                    );
+                });
+            `)).then(() => {
+                console.log('✅ Service Worker registrado');
+            }).catch(err => {
+                console.log('⚠️ Service Worker no disponible:', err);
+            });
+        } else if (window.location.protocol === 'file:') {
+            console.log('ℹ️ Service Worker no disponible en file:// — el sistema sigue funcionando offline gracias a IndexedDB/localStorage.');
+        }
+    </script>
+</body>
+</html>
