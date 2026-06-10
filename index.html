@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="MundoVerde">
-    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiTXVuZG9WZXJkZSIsInNob3J0X25hbWUiOiJNdW5kb1ZlcmRlIiwic3RhcnRfdXJsIjoiLiIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiNlOGY1ZTkiLCJ0aGVtZV9jb2xvciI6IiMyZTdkMzIiLCJpY29ucyI6W3sic3JjIjoiZGF0YTppbWFnZS9zdmcreG1sLCUzQ3N2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxMDAgMTAwJyUzRSUzQ3RleHQgeT0nLjllbScgZm9udC1zaXplPSc5MCclM0UlRjAlOUYlOUElOUMlM0MvdGV4dCUzRSUzQy9zdmclM0UiLCJzaXplcyI6IjUxMng1MTIiLCJ0eXBlIjoiaW1hZ2Uvc3ZnK3htbCJ9XX0=">
+    <link rel="manifest" href="./manifest.json">
 
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -5484,11 +5484,12 @@ window.onload = async function() {
         // v3.24: cache v4 (forzar refresh tras truncado) + fix offline (detecta navigator.onLine + timeout)
         if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
             navigator.serviceWorker.register('data:application/javascript;base64,' + btoa(`
-                const CACHE_NAME = 'mundoverde-v6';
+                const CACHE_NAME = 'mundoverde-v8';
                 // v3.25: separar críticas (HTML — sin esto la app no abre offline) de opcionales (libs externas)
                 const CRITICAL_URLS = [
                     './',
-                    './index.html'
+                    './index.html',
+                    './manifest.json'
                 ];
                 const OPTIONAL_URLS = [
                     'https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js',
@@ -5528,36 +5529,51 @@ window.onload = async function() {
                         (event.request.destination === 'document');
 
                     if (esNavegacion) {
-                        // v3.25: CACHE-FIRST con revalidación en background (stale-while-revalidate)
-                        // Esto garantiza apertura instantánea siempre, sin depender de navigator.onLine
-                        // ni de timeouts (que en iOS Safari con señal ambigua se cuelgan).
-                        event.respondWith(
-                            caches.match(event.request).then((cachedResponse) => {
-                                // En background: intentar bajar versión nueva y guardarla
-                                const fetchPromise = fetch(event.request).then((networkResponse) => {
-                                    if (networkResponse && networkResponse.status === 200) {
-                                        const copia = networkResponse.clone();
-                                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copia));
-                                        // Si había cache previo y el nuevo es distinto, avisar al cliente
-                                        if (cachedResponse) {
-                                            Promise.all([
-                                                cachedResponse.clone().text(),
-                                                networkResponse.clone().text()
-                                            ]).then(([viejo, nuevo]) => {
-                                                if (viejo !== nuevo) {
-                                                    self.clients.matchAll().then(clients => {
-                                                        clients.forEach(c => c.postMessage({ type: 'NEW_VERSION_AVAILABLE' }));
-                                                    });
-                                                }
-                                            }).catch(() => {});
-                                        }
+                        // v3.26: CACHE-FIRST con revalidación + MATCH FLEXIBLE
+                        // Match tolerante: si la URL exacta no está en cache, prueba variantes
+                        // (con/sin trailing slash, ignoreSearch para queries) — ayuda cuando
+                        // Safari agrega query params o cuando GitHub Pages redirige rutas.
+                        event.respondWith((async () => {
+                            const cache = await caches.open(CACHE_NAME);
+                            // Intento 1: match exacto
+                            let cachedResponse = await cache.match(event.request);
+                            // Intento 2: ignorar query string
+                            if (!cachedResponse) {
+                                cachedResponse = await cache.match(event.request, { ignoreSearch: true });
+                            }
+                            // Intento 3: cualquier HTML cacheado del mismo origin (último recurso)
+                            if (!cachedResponse) {
+                                const keys = await cache.keys();
+                                for (const req of keys) {
+                                    if (req.url.includes(self.location.origin) &&
+                                        (req.url.endsWith('/') || req.url.endsWith('.html') || req.url.endsWith('/index.html'))) {
+                                        cachedResponse = await cache.match(req);
+                                        if (cachedResponse) break;
                                     }
-                                    return networkResponse;
-                                }).catch(() => null);
-                                // Devolver cache instantáneo si existe, sino esperar fetch
-                                return cachedResponse || fetchPromise || Response.error();
-                            })
-                        );
+                                }
+                            }
+                            // En background: intentar bajar versión nueva y guardarla
+                            const fetchPromise = fetch(event.request).then((networkResponse) => {
+                                if (networkResponse && networkResponse.status === 200) {
+                                    const copia = networkResponse.clone();
+                                    cache.put(event.request, copia);
+                                    if (cachedResponse) {
+                                        Promise.all([
+                                            cachedResponse.clone().text(),
+                                            networkResponse.clone().text()
+                                        ]).then(([viejo, nuevo]) => {
+                                            if (viejo !== nuevo) {
+                                                self.clients.matchAll().then(clients => {
+                                                    clients.forEach(c => c.postMessage({ type: 'NEW_VERSION_AVAILABLE' }));
+                                                });
+                                            }
+                                        }).catch(() => {});
+                                    }
+                                }
+                                return networkResponse;
+                            }).catch(() => null);
+                            return cachedResponse || (await fetchPromise) || Response.error();
+                        })());
                         return;
                     }
 
