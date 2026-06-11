@@ -5484,7 +5484,7 @@ window.onload = async function() {
         // v3.24: cache v4 (forzar refresh tras truncado) + fix offline (detecta navigator.onLine + timeout)
         if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
             navigator.serviceWorker.register('data:application/javascript;base64,' + btoa(`
-                const CACHE_NAME = 'mundoverde-v8';
+                const CACHE_NAME = 'mundoverde-v9';
                 // v3.25: separar críticas (HTML — sin esto la app no abre offline) de opcionales (libs externas)
                 const CRITICAL_URLS = [
                     './',
@@ -5529,51 +5529,19 @@ window.onload = async function() {
                         (event.request.destination === 'document');
 
                     if (esNavegacion) {
-                        // v3.26: CACHE-FIRST con revalidación + MATCH FLEXIBLE
-                        // Match tolerante: si la URL exacta no está en cache, prueba variantes
-                        // (con/sin trailing slash, ignoreSearch para queries) — ayuda cuando
-                        // Safari agrega query params o cuando GitHub Pages redirige rutas.
-                        event.respondWith((async () => {
-                            const cache = await caches.open(CACHE_NAME);
-                            // Intento 1: match exacto
-                            let cachedResponse = await cache.match(event.request);
-                            // Intento 2: ignorar query string
-                            if (!cachedResponse) {
-                                cachedResponse = await cache.match(event.request, { ignoreSearch: true });
-                            }
-                            // Intento 3: cualquier HTML cacheado del mismo origin (último recurso)
-                            if (!cachedResponse) {
-                                const keys = await cache.keys();
-                                for (const req of keys) {
-                                    if (req.url.includes(self.location.origin) &&
-                                        (req.url.endsWith('/') || req.url.endsWith('.html') || req.url.endsWith('/index.html'))) {
-                                        cachedResponse = await cache.match(req);
-                                        if (cachedResponse) break;
-                                    }
-                                }
-                            }
-                            // En background: intentar bajar versión nueva y guardarla
-                            const fetchPromise = fetch(event.request).then((networkResponse) => {
+                        // v3.27: VUELTA A LO SIMPLE - network-first → cache fallback
+                        // El usuario reportó que la lógica simple original funcionaba mejor.
+                        // Si hay red: descargar versión nueva y cachearla.
+                        // Si no hay red: devolver cache directamente.
+                        event.respondWith(
+                            fetch(event.request).then((networkResponse) => {
                                 if (networkResponse && networkResponse.status === 200) {
                                     const copia = networkResponse.clone();
-                                    cache.put(event.request, copia);
-                                    if (cachedResponse) {
-                                        Promise.all([
-                                            cachedResponse.clone().text(),
-                                            networkResponse.clone().text()
-                                        ]).then(([viejo, nuevo]) => {
-                                            if (viejo !== nuevo) {
-                                                self.clients.matchAll().then(clients => {
-                                                    clients.forEach(c => c.postMessage({ type: 'NEW_VERSION_AVAILABLE' }));
-                                                });
-                                            }
-                                        }).catch(() => {});
-                                    }
+                                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, copia));
                                 }
                                 return networkResponse;
-                            }).catch(() => null);
-                            return cachedResponse || (await fetchPromise) || Response.error();
-                        })());
+                            }).catch(() => caches.match(event.request).then(r => r || caches.match('./index.html') || caches.match('./')))
+                        );
                         return;
                     }
 
