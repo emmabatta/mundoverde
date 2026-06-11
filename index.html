@@ -5484,14 +5484,8 @@ window.onload = async function() {
         // v3.24: cache v4 (forzar refresh tras truncado) + fix offline (detecta navigator.onLine + timeout)
         if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
             navigator.serviceWorker.register('data:application/javascript;base64,' + btoa(`
-                const CACHE_NAME = 'mundoverde-v9';
-                // v3.25: separar críticas (HTML — sin esto la app no abre offline) de opcionales (libs externas)
-                const CRITICAL_URLS = [
-                    './',
-                    './index.html',
-                    './manifest.json'
-                ];
-                const OPTIONAL_URLS = [
+                const CACHE_NAME = 'mundoverde-v10';
+                const PRECACHE_URLS = [
                     'https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js',
                     'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js',
                     'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js'
@@ -5500,15 +5494,9 @@ window.onload = async function() {
                 self.addEventListener('install', (event) => {
                     console.log('Service Worker: Instalando...');
                     event.waitUntil(
-                        caches.open(CACHE_NAME).then(cache => {
-                            // CRÍTICO: descargar HTML SI O SI antes de activar el SW.
-                            // Si esto falla, el SW NO se instala y se reintenta después.
-                            return cache.addAll(CRITICAL_URLS).then(() => {
-                                console.log('✅ HTML pre-cacheado en instalación');
-                                // OPCIONAL: libs externas, si fallan no rompemos
-                                return cache.addAll(OPTIONAL_URLS).catch(e => console.warn('Libs externas no cacheadas:', e));
-                            });
-                        }).then(() => self.skipWaiting())
+                        caches.open(CACHE_NAME)
+                            .then(cache => cache.addAll(PRECACHE_URLS).catch(e => console.warn('Pre-cache parcial:', e)))
+                            .then(() => self.skipWaiting())
                     );
                 });
 
@@ -5529,10 +5517,7 @@ window.onload = async function() {
                         (event.request.destination === 'document');
 
                     if (esNavegacion) {
-                        // v3.27: VUELTA A LO SIMPLE - network-first → cache fallback
-                        // El usuario reportó que la lógica simple original funcionaba mejor.
-                        // Si hay red: descargar versión nueva y cachearla.
-                        // Si no hay red: devolver cache directamente.
+                        // v3.18 ORIGINAL: la versión que funcionaba 99% del tiempo
                         event.respondWith(
                             fetch(event.request).then((networkResponse) => {
                                 if (networkResponse && networkResponse.status === 200) {
@@ -5540,7 +5525,7 @@ window.onload = async function() {
                                     caches.open(CACHE_NAME).then(cache => cache.put(event.request, copia));
                                 }
                                 return networkResponse;
-                            }).catch(() => caches.match(event.request).then(r => r || caches.match('./index.html') || caches.match('./')))
+                            }).catch(() => caches.match(event.request))
                         );
                         return;
                     }
